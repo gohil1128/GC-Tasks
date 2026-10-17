@@ -1,16 +1,32 @@
 "use server";
-// CONTRACT STUB — signatures are fixed; bodies are implemented by the team/auth builder.
+import { requireUser, type CurrentUser } from "@/lib/auth";
 import type { Role } from "@/lib/permissions";
 import type { ActionResult, Member } from "@/modules/tasks/types";
-
-const TODO = (): never => {
-  throw new Error("not implemented");
-};
+import {
+  addMember,
+  resetMemberPassword,
+  sessionFailure,
+  setMemberActive,
+  setMemberRole,
+  updateProfile,
+} from "@/modules/team/service";
 
 /*
   Everything here except updateProfileAction is owners-only (FORBIDDEN for
-  staff), checked on the server.
+  staff), checked on the server — in ./service.ts, against the database as it
+  stands inside the transaction, not against what the browser was showing.
 */
+
+/** Authenticate, then hand over; a lost or half-finished session comes back as a result, not a throw. */
+async function asSignedIn<T>(work: (actor: CurrentUser) => Promise<ActionResult<T>>): Promise<ActionResult<T>> {
+  let actor: CurrentUser;
+  try {
+    actor = await requireUser();
+  } catch (err) {
+    return sessionFailure(err);
+  }
+  return work(actor);
+}
 
 /**
   Add an owner or a staff member. Returns the one-time temporary password to
@@ -21,14 +37,12 @@ export async function addMemberAction(input: {
   email: string;
   role: Role;
 }): Promise<ActionResult<{ member: Member; tempPassword: string }>> {
-  void input;
-  return TODO();
+  return asSignedIn((actor) => addMember(actor, input));
 }
 
 /** Sets a fresh temporary password (and mustChangePassword). Not for yourself. */
 export async function resetMemberPasswordAction(id: string): Promise<ActionResult<{ tempPassword: string }>> {
-  void id;
-  return TODO();
+  return asSignedIn((actor) => resetMemberPassword(actor, id));
 }
 
 /**
@@ -37,9 +51,7 @@ export async function resetMemberPasswordAction(id: string): Promise<ActionResul
   assignees on the board.
 */
 export async function setMemberActiveAction(id: string, active: boolean): Promise<ActionResult<Member>> {
-  void id;
-  void active;
-  return TODO();
+  return asSignedIn((actor) => setMemberActive(actor, id, active));
 }
 
 /**
@@ -48,13 +60,10 @@ export async function setMemberActiveAction(id: string, active: boolean): Promis
   can still be on tasks.
 */
 export async function setMemberRoleAction(id: string, role: Role): Promise<ActionResult<Member>> {
-  void id;
-  void role;
-  return TODO();
+  return asSignedIn((actor) => setMemberRole(actor, id, role));
 }
 
 /** Your own name and avatar colour. Anyone, owner or staff. */
 export async function updateProfileAction(input: { name: string; color: string }): Promise<ActionResult<Member>> {
-  void input;
-  return TODO();
+  return asSignedIn((actor) => updateProfile(actor, input));
 }
