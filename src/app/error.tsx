@@ -28,7 +28,8 @@ export default function ErrorPage({ error, reset }: { error: Error & { digest?: 
         <div className="mt-6 flex flex-wrap justify-center gap-2">
           <Button onClick={reset}>Try again</Button>
           <Button asChild variant="outline">
-            {/* A full load rather than a client navigation: whatever broke may be in the client's state. */}
+            {/* A full load on purpose, not a client navigation: whatever broke may live in the client's state. */}
+            {/* eslint-disable-next-line @next/next/no-html-link-for-pages */}
             <a href="/">Back to the board</a>
           </Button>
         </div>

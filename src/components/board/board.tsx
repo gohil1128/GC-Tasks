@@ -113,14 +113,36 @@ function laidOut(rect: { width: number; height: number } | undefined): boolean {
 }
 
 /*
-  On a phone the other two columns are display:none, which leaves their
-  droppables measuring 0×0 at the top-left corner — close to everything.
-  Both the collision check and the arrow-key navigation ignore anything not
-  actually laid out.
+  Arrow keys during a keyboard drag. dnd-kit's sortable version goes to the
+  nearest droppable on the pressed side, measured by left edge — and the
+  card's own column tray starts left of the card, so Left from Done "moves"
+  into Done and goes nowhere. Narrowed first, then handed over:
+    - on a phone the other two columns are display:none, measuring 0×0 at
+      the top-left corner, close to everything; anything not laid out is out
+      (the collision check skips them too);
+    - a column holding cards is reached through its cards, so the card lands
+      next to one; only an empty column is a target itself;
+    - Left and Right only consider what lies wholly to that side.
 */
 const keyboardCoordinates: KeyboardCoordinateGetter = (event, args) => {
-  const droppableRects = new Map([...args.context.droppableRects].filter(([, rect]) => laidOut(rect)));
-  return sortableKeyboardCoordinates(event, { ...args, context: { ...args.context, droppableRects } });
+  const { active, collisionRect, droppableRects, droppableContainers } = args.context;
+  const filled = new Set<string>();
+  for (const entry of droppableContainers.getEnabled()) {
+    const sortable = entry.data.current?.sortable as { containerId: UniqueIdentifier } | undefined;
+    if (sortable && entry.id !== active?.id && laidOut(droppableRects.get(entry.id))) {
+      filled.add(String(sortable.containerId));
+    }
+  }
+  const rects: typeof droppableRects = new Map();
+  for (const [id, rect] of droppableRects) {
+    if (!laidOut(rect)) continue;
+    const column = statusOfDroppable(String(id));
+    if (column && filled.has(column)) continue;
+    if (collisionRect && event.code === "ArrowLeft" && rect.left + rect.width > collisionRect.left) continue;
+    if (collisionRect && event.code === "ArrowRight" && rect.left < collisionRect.left + collisionRect.width) continue;
+    rects.set(id, rect);
+  }
+  return sortableKeyboardCoordinates(event, { ...args, context: { ...args.context, droppableRects: rects } });
 };
 
 const SCREEN_READER: ScreenReaderInstructions = {
@@ -128,8 +150,18 @@ const SCREEN_READER: ScreenReaderInstructions = {
     "Press Enter to open this card. To move it, press Space to pick it up, use the arrow keys to move it within a column or to the next column, then press Space to drop it, or Escape to cancel.",
 };
 
+/*
+  While the lifted copy glides into its slot it sits exactly over the real
+  card, so it lets presses through: otherwise grabbing the card again within
+  that quarter-second lands on the copy and nothing happens. A class rather
+  than a style: dnd-kit applies `styles` with style.setProperty(), which
+  wants "pointer-events", not the camelCase key its types ask for.
+*/
 const DROP_ANIMATION: DropAnimation = {
-  sideEffects: defaultDropAnimationSideEffects({ styles: { active: { opacity: "0.4" } } }),
+  sideEffects: defaultDropAnimationSideEffects({
+    styles: { active: { opacity: "0.4" } },
+    className: { dragOverlay: "pointer-events-none" },
+  }),
 };
 
 type DragState = { activeId: string; origin: Status; columns: Columns };
@@ -717,7 +749,10 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
           </div>
         )}
 
+        {/* A fixed id: without one dnd-kit numbers its aria-describedby ids from
+            a module counter, which the server and the browser count differently. */}
         <DndContext
+          id="board"
           sensors={sensors}
           collisionDetection={collisionDetection}
           onDragStart={handleDragStart}

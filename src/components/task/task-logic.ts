@@ -1,9 +1,13 @@
-import { parseDay } from "@/lib/dates";
+import { dueState, parseDay, timeAgo, type DueState } from "@/lib/dates";
 import type { Actor } from "@/lib/permissions";
+import { describeActivity } from "@/modules/tasks/activity";
 import type {
+  ActivityDTO,
   ChecklistItemDTO,
+  CreateTaskInput,
   LabelDTO,
   Member,
+  Priority,
   Status,
   TaskCard,
   TaskDetail,
@@ -95,6 +99,23 @@ export function freshestCard(a: TaskCard | null, b: TaskCard | null): TaskCard |
 }
 
 /**
+  A newer read of the whole task folded into the one on screen: the server's
+  checklist, comments and history, and whichever copy of the card is fresher
+  — an action's answer can land after a read that started before it.
+*/
+export function mergeDetail(local: TaskDetail | null, server: TaskDetail): TaskDetail {
+  if (!local || local.id !== server.id) return server;
+  const onScreen = cardOf(local);
+  return isAtLeastAsFresh(cardOf(server), onScreen) ? server : { ...server, ...onScreen };
+}
+
+/** `detail` with the card an action came back with, unless what is on screen is already newer. */
+export function withCard(detail: TaskDetail, card: TaskCard): TaskDetail {
+  if (card.id !== detail.id || !isAtLeastAsFresh(card, cardOf(detail))) return detail;
+  return { ...detail, ...card };
+}
+
+/**
   What, on the board's copy of a card, means the open dialog is out of date.
   updatedAt covers content, people, moves and checklist edits; comments do
   not touch the task, so their count is part of it too. null is a card that
@@ -179,6 +200,23 @@ export function applyChecklistChange(items: ChecklistItemDTO[], change: Checklis
       return [...items.slice(0, at), change.item, ...items.slice(at)];
     }
   }
+}
+
+type ItemFields = Partial<Pick<ChecklistItemDTO, "text" | "done">>;
+
+/**
+  Undo an optimistic edit to one item that the server refused — but only the
+  fields still showing what was sent. A field changed again since belongs to
+  a later edit, which is answered (or undone) on its own.
+*/
+export function revertItem(items: ChecklistItemDTO[], id: string, sent: ItemFields, previous: ItemFields): ChecklistItemDTO[] {
+  return items.map((item) => {
+    if (item.id !== id) return item;
+    const out = { ...item };
+    if (sent.text !== undefined && previous.text !== undefined && item.text === sent.text) out.text = previous.text;
+    if (sent.done !== undefined && previous.done !== undefined && item.done === sent.done) out.done = previous.done;
+    return out;
+  });
 }
 
 // ── Content edits and conflicts ────────────────────────────────────────────
@@ -285,6 +323,52 @@ export function omitFields(patch: ContentPatch, fields: object): ContentPatch {
   return out as ContentPatch;
 }
 
+function sameValue(a: unknown, b: unknown): boolean {
+  if (Array.isArray(a) && Array.isArray(b)) return a.length === b.length && a.every((x, i) => x === b[i]);
+  return a === b;
+}
+
+/**
+  The card as the person sees it: what the server last confirmed, with the
+  changes they have made but the server has not answered yet laid on top, so
+  a pick shows at once rather than after the round trip.
+*/
+export function showCard(card: TaskCard, pending: ContentPatch): TaskCard {
+  const out: Record<string, unknown> = { ...card };
+  for (const [key, value] of Object.entries(pending)) if (value !== undefined) out[key] = value;
+  return out as TaskCard;
+}
+
+/**
+  The pending changes left once a save of `patch` has been answered, either
+  way. A field the person has changed again since keeps its newer value — it
+  belongs to a save still queued behind this one.
+*/
+export function settlePending(pending: ContentPatch, patch: ContentPatch): ContentPatch {
+  const out: Record<string, unknown> = { ...pending };
+  for (const [key, value] of Object.entries(patch)) {
+    if (value !== undefined && sameValue(out[key], value)) delete out[key];
+  }
+  return out as ContentPatch;
+}
+
+/** Somebody else's save beat this person's: who, and the values of theirs that were not sent. */
+export type Conflict = { by: string; fields: ScalarPatch };
+
+/** Another clash on top of any still showing; the latest author is the one named. */
+export function addConflict(current: Conflict | null, by: string, fields: ScalarPatch): Conflict | null {
+  if (!hasFields(fields)) return current;
+  return { by, fields: { ...(current?.fields ?? {}), ...fields } };
+}
+
+/** One field dealt with (re-applied or let go); null once none are left. */
+export function dropConflictField(current: Conflict | null, field: ScalarField): Conflict | null {
+  if (!current) return null;
+  const fields = { ...current.fields };
+  delete fields[field];
+  return hasFields(fields) ? { ...current, fields } : null;
+}
+
 // ── Small display rules ────────────────────────────────────────────────────
 
 /**
@@ -314,4 +398,110 @@ export function isPlausibleDay(value: string): boolean {
   if (!day) return false;
   const year = day.getUTCFullYear();
   return year >= 2000 && year < 2200;
+}
+
+/**
+  The due date's warning, if it deserves one. Finished work is not late, so a
+  done task's date is shown plainly; a date more than two days out needs no
+  badge either.
+*/
+export function dueBadge(
+  dueDate: string | null,
+  status: Status,
+  today: string,
+): { state: Exclude<DueState, "later">; text: string } | null {
+  if (!dueDate || status === "DONE") return null;
+  const state = dueState(dueDate, today);
+  if (state === "overdue") return { state, text: "Overdue" };
+  if (state === "today") return { state, text: "Due today" };
+  if (state === "soon") return { state, text: "Due soon" };
+  return null;
+}
+
+/** "Created by Riya · 2h ago" and, once it has been changed since, "Last edited by you · 5m ago". */
+export function bylines(
+  card: Pick<TaskCard, "createdById" | "createdAt" | "updatedById" | "updatedAt">,
+  members: Member[],
+  currentUserId: string,
+  now: Date,
+): { created: string; edited: string | null } {
+  const names = namer(members, currentUserId);
+  const created = `Created by ${names.object(card.createdById)} · ${timeAgo(card.createdAt, now)}`;
+  const edited = wasEdited(card.createdAt, card.updatedAt)
+    ? `Last edited by ${names.object(card.updatedById)} · ${timeAgo(card.updatedAt, now)}`
+    : null;
+  return { created, edited };
+}
+
+/** One line of history: "You moved this from To do to In progress", "Riya assigned you". */
+export function activityLine(activity: ActivityDTO, members: Member[], currentUserId: string): string {
+  const names = namer(members, currentUserId);
+  return `${names.subject(activity.actorId)} ${describeActivity(activity, names.object)}`;
+}
+
+// ── Labels ─────────────────────────────────────────────────────────────────
+
+/** Labels whose name contains `query`, ignoring case and surrounding space. */
+export function filterLabels(labels: LabelDTO[], query: string): LabelDTO[] {
+  const q = query.trim().toLocaleLowerCase();
+  if (!q) return labels;
+  return labels.filter((l) => l.name.toLocaleLowerCase().includes(q));
+}
+
+/**
+  Why a new label cannot be called `name`, or null if it can. Names are
+  unique regardless of case on the server; saying so here saves a round trip
+  that would only be refused.
+*/
+export function labelNameProblem(labels: LabelDTO[], name: string): string | null {
+  const clean = name.trim();
+  if (!clean) return "Give the label a name.";
+  if (clean.length > 80) return "Keep label names to 80 characters or fewer.";
+  const lower = clean.toLocaleLowerCase();
+  if (labels.some((l) => l.name.toLocaleLowerCase() === lower)) return "There is already a label with that name.";
+  return null;
+}
+
+// ── New tasks ──────────────────────────────────────────────────────────────
+
+export type NewTaskForm = {
+  title: string;
+  description: string;
+  status: Status;
+  priority: Priority;
+  /** "" for none, as a date field reports it. */
+  dueDate: string;
+  assigneeIds: string[];
+  labelIds: string[];
+};
+
+export function emptyNewTask(status: Status): NewTaskForm {
+  return { title: "", description: "", status, priority: "MEDIUM", dueDate: "", assigneeIds: [], labelIds: [] };
+}
+
+/**
+  The form as createTaskAction wants it, or what is wrong with it. Checked
+  again on the server; this is so the person hears about an empty title
+  without waiting for a round trip.
+*/
+export function toCreateInput(
+  form: NewTaskForm,
+): { ok: true; input: CreateTaskInput } | { ok: false; field: "title" | "dueDate"; error: string } {
+  const title = cleanTitle(form.title);
+  if (!title) return { ok: false, field: "title", error: "Give the task a title." };
+  if (title.length > 200) return { ok: false, field: "title", error: "Keep the title to 200 characters or fewer." };
+  const due = form.dueDate.trim();
+  if (due && !parseDay(due)) return { ok: false, field: "dueDate", error: "That due date is not a real day." };
+  return {
+    ok: true,
+    input: {
+      title,
+      description: form.description.trim(),
+      status: form.status,
+      priority: form.priority,
+      dueDate: due || null,
+      assigneeIds: form.assigneeIds,
+      labelIds: form.labelIds,
+    },
+  };
 }
