@@ -1,10 +1,27 @@
 # God's Chai Tasks
 
-A shared task board for the God's Chai owners. Everyone signs in with their own email and password. Anyone who is signed in can see, add, edit, move and delete any task.
+A shared task board for the God's Chai team. Everyone signs in with their own email and password. **Owners** have full access. **Staff** see the whole board but can change only the tasks they're working on.
 
 The board has three columns: **To do → In progress → Done**. Drag a card to move it. Each card shows who is working on it, plus its labels, priority, due date, checklist progress and comment count. Click a card to open it. From there you can edit it, assign people, tick off checklist items, leave comments and see its history.
 
 This app is separate from God's Chai Operations. It has its own database, its own logins and its own deployment. It lives in this repository only so the two apps share a home.
+
+## Who can do what
+
+| | Owner | Staff |
+|---|---|---|
+| See the whole board, open any task | ✓ | ✓ |
+| Comment on any task | ✓ | ✓ |
+| Edit or delete their own comments | ✓ | ✓ |
+| Pick up an unclaimed task ("I'll take this") | ✓ | ✓ (only if it isn't done yet) |
+| Move a task between columns | ✓ any task | only tasks they're on |
+| Tick off, add and edit checklist items | ✓ any task | only tasks they're on |
+| Create tasks; edit title, description, priority, due date, labels and assignees | ✓ | — |
+| Archive, restore and delete tasks; delete anyone's comment | ✓ | — |
+| Manage labels | ✓ | — |
+| Add teammates, change roles, reset passwords, deactivate accounts | ✓ | — |
+
+These rules live in one place, `src/lib/permissions.ts`. The server enforces them on every change. The browser uses the same rules to hide buttons a staff member can't use.
 
 ## Features
 
@@ -15,7 +32,7 @@ This app is separate from God's Chai Operations. It has its own database, its ow
 - **Two people at once.** Open boards check for changes every few seconds, so a card a teammate moves shows up without reloading. If two people edit the same task at the same time, the second person is told and shown the latest version. Nobody's edit is silently overwritten.
 - **Filters.** My tasks, by person, by label, by priority, and search. Press `n` for a new task and `/` to search.
 - **Archive.** Hide finished tasks from the board, and restore them later.
-- **Team.** Any owner can add a teammate. The app creates a one-time password, and the new person chooses their own password the first time they sign in. Owners can reset a teammate's password or deactivate their account. A deactivated person's name stays on their old tasks and comments, but they can't sign in.
+- **Team.** Owners add teammates as Owner or Staff. The app creates a one-time password, and the new person chooses their own password the first time they sign in. Owners can also change someone's role, reset their password, or deactivate their account. A deactivated person's name stays on their old tasks and comments, but they can't sign in. The board always keeps at least one active owner.
 
 ## Deploy (Vercel + Neon)
 
@@ -24,8 +41,8 @@ This app is separate from God's Chai Operations. It has its own database, its ow
 3. Under **Environment Variables**, add these two:
    - `AUTH_SECRET`: any random string of 32 or more characters.
    - `AUTH_TRUST_HOST`: `true`
-4. Deploy. When it finishes, open the project's **Storage** tab, choose **Create Database → Neon**, and connect it to the project. This sets `DATABASE_URL`. Then use **Deployments → ⋯ → Redeploy**. Each build applies the database migrations automatically.
-5. Open the site. The first visit goes to **/setup**, where you create the first account. That page only works while there are no accounts. After that, add everyone else from the **Team** page.
+4. Deploy. This first build fails because there is no database yet. That's expected. Next, open the project's **Storage** tab, choose **Create Database → Neon**, and connect it to the project. This sets `DATABASE_URL`. Then use **Deployments → ⋯ → Redeploy**. Each build applies the database migrations automatically.
+5. Open the site. The first visit goes to **/setup**, where you create the first account, which is an owner. That page only works while there are no accounts. After that, add everyone else from the **Team** page.
 
 ## Run it locally
 
@@ -40,7 +57,7 @@ pnpm dev                      # http://localhost:3200 → /setup on first run
 To create or reset an account from the command line, run this. Leave out `--password` to have one generated; the person will then be asked to choose their own the first time they sign in.
 
 ```bash
-pnpm create-user --email you@example.com --name "Your Name" [--password "…"] [--reset]
+pnpm create-user --email you@example.com --name "Your Name" [--role owner|staff] [--password "…"] [--reset]
 ```
 
 ## Checks
