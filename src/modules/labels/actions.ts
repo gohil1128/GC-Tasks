@@ -2,6 +2,8 @@
 // CONTRACT STUB — signatures are fixed; bodies are implemented by the server-core builder.
 import type { ActionResult, LabelDTO } from "@/modules/tasks/types";
 
+// Owners only; staff get FORBIDDEN.
+
 const TODO = (): never => {
   throw new Error("not implemented");
 };

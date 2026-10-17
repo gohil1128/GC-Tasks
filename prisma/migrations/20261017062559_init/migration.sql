@@ -4,12 +4,16 @@ CREATE TYPE "TaskStatus" AS ENUM ('TODO', 'IN_PROGRESS', 'DONE');
 -- CreateEnum
 CREATE TYPE "Priority" AS ENUM ('LOW', 'MEDIUM', 'HIGH', 'URGENT');
 
+-- CreateEnum
+CREATE TYPE "Role" AS ENUM ('OWNER', 'STAFF');
+
 -- CreateTable
 CREATE TABLE "User" (
     "id" TEXT NOT NULL,
     "email" TEXT NOT NULL,
     "name" TEXT NOT NULL,
     "passwordHash" TEXT NOT NULL,
+    "role" "Role" NOT NULL DEFAULT 'STAFF',
     "mustChangePassword" BOOLEAN NOT NULL DEFAULT false,
     "active" BOOLEAN NOT NULL DEFAULT true,
     "color" TEXT NOT NULL DEFAULT 'rust',

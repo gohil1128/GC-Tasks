@@ -6,6 +6,8 @@
   No server-only imports: client components import this file.
 */
 
+import type { Role } from "@/lib/permissions";
+
 export const STATUSES = ["TODO", "IN_PROGRESS", "DONE"] as const;
 export type Status = (typeof STATUSES)[number];
 
@@ -31,6 +33,7 @@ export type Member = {
   name: string;
   email: string;
   color: string;
+  role: Role;
   active: boolean;
 };
 
@@ -151,7 +154,10 @@ export type ErrorCode =
   | "PASSWORD_CHANGE_REQUIRED";
 
 /**
-  What every board Server Action returns. Actions never throw at the browser
+  What every board Server Action returns.
+
+  FORBIDDEN means signed in but not allowed — a staff account trying an
+  owner's action, or working a task it is not on (src/lib/permissions.ts). Actions never throw at the browser
   for an expected failure: a bad input, a stale edit or a vanished task is a
   value the UI can show. `revision` is the board revision after the write, so
   the caller can skip the refetch its own write would otherwise trigger.

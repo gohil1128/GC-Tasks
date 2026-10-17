@@ -74,7 +74,15 @@ export const currentUser = cache(async () => {
   if (!id) return null;
   const user = await prisma.user.findUnique({
     where: { id },
-    select: { id: true, email: true, name: true, color: true, active: true, mustChangePassword: true },
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      color: true,
+      role: true,
+      active: true,
+      mustChangePassword: true,
+    },
   });
   if (!user || !user.active) return null;
   return user;
@@ -93,5 +101,12 @@ export async function requireUser(): Promise<CurrentUser> {
   const user = await currentUser();
   if (!user) throw new Error("UNAUTHORIZED");
   if (user.mustChangePassword) throw new Error("PASSWORD_CHANGE_REQUIRED");
+  return user;
+}
+
+/** requireUser, and an owner. Staff get "FORBIDDEN". */
+export async function requireOwner(): Promise<CurrentUser> {
+  const user = await requireUser();
+  if (user.role !== "OWNER") throw new Error("FORBIDDEN");
   return user;
 }

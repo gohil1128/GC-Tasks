@@ -10,6 +10,16 @@ import type {
   UpdateTaskInput,
 } from "@/modules/tasks/types";
 
+/*
+  Permissions (src/lib/permissions.ts), enforced here on the server:
+    owners only: create, update, delete, archive, restore, archiveDone
+    owners or staff ON the task: move, checklist add/update/delete
+    join: owners, or staff on an unclaimed task that is not DONE
+    leave: anyone on the task
+    comments: anyone may add; edit own only; delete own, or any if owner
+  A refusal is { ok:false, code:"FORBIDDEN" }.
+*/
+
 const TODO = (): never => {
   throw new Error("not implemented");
 };
