@@ -1,0 +1,194 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+  GC Tasks — the God's Chai palette.
+
+  The same two logo hues as God's Chai Operations (dark roast #3C2216 and
+  chai rust #B85D3C) on a warm cream canvas, so the two apps read as one
+  family. Simpler than Operations: no photograph, no glass, just cards on
+  cream — a board is somewhere you work all day and should stay quiet.
+*/
+@layer base {
+  :root {
+    --font-display: var(--font-display-src), ui-sans-serif, system-ui, sans-serif;
+    --font-sans: var(--font-sans-src), ui-sans-serif, system-ui, -apple-system, sans-serif;
+
+    --ink-950: 19 48% 9%;
+    --ink-800: 19 46% 16%;   /* logo brown */
+    --ink-600: 20 34% 30%;
+    --ink-500: 21 24% 40%;
+    --rust-700: 16 56% 36%;
+    --rust-600: 16 54% 42%;
+    --rust-500: 16 51% 48%;  /* logo rust */
+    --rust-100: 24 52% 94%;
+
+    --background: 37 37% 93%;          /* #F4EFE7 */
+    --foreground: var(--ink-950);
+    --card: 40 50% 98%;
+    --card-foreground: var(--ink-950);
+    --popover: 40 50% 98%;
+    --popover-foreground: var(--ink-950);
+    /* A column is a recessed tray the cards sit in. */
+    --column: 37 30% 89%;
+
+    --primary: var(--ink-800);
+    --primary-foreground: 37 56% 94%;
+    --espresso: var(--ink-800);
+    --espresso-foreground: 37 56% 94%;
+    --secondary: 38 44% 96%;
+    --secondary-foreground: var(--ink-600);
+    --muted: 38 40% 95%;
+    --muted-foreground: var(--ink-500);   /* 5.6:1 on card */
+    --accent: 32 32% 92%;
+    --accent-foreground: var(--ink-600);
+    --beige: 37 30% 90%;
+    --beige-deep: 35 26% 85%;
+
+    --destructive: 0 60% 42%;
+    --destructive-foreground: 0 0% 100%;
+    --destructive-muted: 0 65% 93%;
+    --success: 148 55% 27%;
+    --success-foreground: 0 0% 100%;
+    --success-muted: 144 39% 92%;
+    --warning: 39 85% 26%;
+    --warning-foreground: 0 0% 100%;
+    --warning-muted: 41 81% 92%;
+
+    --brand: var(--rust-500);
+    --brand-foreground: 0 0% 100%;
+    --brand-ink: var(--rust-700);       /* rust as text: 6.7:1 on cream */
+    --brand-strong: var(--rust-600);    /* white on it: 5.5:1 */
+    --brand-muted: var(--rust-100);
+
+    --border: 30 30% 86%;
+    --input: 30 28% 84%;
+    --ring: var(--rust-500);
+
+    --shadow-sm: 0 1px 2px hsl(19 46% 16% / 0.06), 0 1px 1px hsl(19 46% 16% / 0.04);
+    --shadow-md: 0 6px 16px -6px hsl(19 46% 16% / 0.18), 0 2px 4px hsl(19 46% 16% / 0.06);
+    --shadow-lg: 0 18px 40px -12px hsl(19 46% 16% / 0.32), 0 4px 10px hsl(19 46% 16% / 0.08);
+  }
+
+  .dark {
+    --background: 20 30% 7%;
+    --foreground: 37 40% 92%;
+    --card: 20 24% 11%;
+    --card-foreground: 37 40% 92%;
+    --popover: 20 24% 12%;
+    --popover-foreground: 37 40% 92%;
+    --column: 20 26% 9%;
+
+    --primary: 37 50% 90%;
+    --primary-foreground: 19 48% 9%;
+    --espresso: 37 50% 90%;
+    --espresso-foreground: 19 48% 9%;
+    --secondary: 20 20% 15%;
+    --secondary-foreground: 33 22% 78%;
+    --muted: 20 20% 15%;
+    --muted-foreground: 33 18% 68%;
+    --accent: 20 20% 17%;
+    --accent-foreground: 33 22% 85%;
+    --beige: 20 18% 16%;
+    --beige-deep: 20 18% 20%;
+
+    --destructive: 0 70% 62%;
+    --destructive-foreground: 0 0% 8%;
+    --destructive-muted: 0 40% 18%;
+    --success: 148 45% 60%;
+    --success-foreground: 0 0% 8%;
+    --success-muted: 148 30% 15%;
+    --warning: 39 85% 62%;
+    --warning-foreground: 0 0% 8%;
+    --warning-muted: 39 40% 16%;
+
+    --brand: 16 60% 58%;
+    --brand-foreground: 0 0% 8%;
+    --brand-ink: 16 70% 70%;
+    --brand-strong: 16 60% 58%;
+    --brand-muted: 16 35% 18%;
+
+    --border: 20 16% 20%;
+    --input: 20 16% 24%;
+    --ring: 16 60% 58%;
+
+    --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.4);
+    --shadow-md: 0 6px 16px -6px hsl(0 0% 0% / 0.6);
+    --shadow-lg: 0 18px 40px -12px hsl(0 0% 0% / 0.7);
+  }
+
+  * {
+    @apply border-border;
+  }
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-background font-sans text-foreground;
+    font-feature-settings: "ss01", "cv11";
+  }
+}
+
+@layer components {
+  .display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  /*
+    Label and avatar tints. Keys match src/lib/colors.ts. Each `tint-*` is a
+    soft chip (background + readable ink); each `solid-*` a filled swatch
+    with white or near-black text, whichever reads.
+  */
+  .tint-rust     { background: hsl(20 60% 92%);  color: hsl(16 60% 32%); }
+  .tint-espresso { background: hsl(25 25% 88%);  color: hsl(19 46% 18%); }
+  .tint-amber    { background: hsl(40 85% 88%);  color: hsl(32 80% 26%); }
+  .tint-olive    { background: hsl(70 35% 86%);  color: hsl(70 45% 22%); }
+  .tint-green    { background: hsl(145 40% 88%); color: hsl(150 55% 22%); }
+  .tint-teal     { background: hsl(180 35% 86%); color: hsl(185 60% 22%); }
+  .tint-blue     { background: hsl(212 60% 91%); color: hsl(214 60% 32%); }
+  .tint-indigo   { background: hsl(236 50% 92%); color: hsl(238 45% 38%); }
+  .tint-plum     { background: hsl(300 30% 90%); color: hsl(300 35% 30%); }
+  .tint-rose     { background: hsl(350 70% 92%); color: hsl(350 55% 34%); }
+  .tint-slate    { background: hsl(30 10% 88%);  color: hsl(25 12% 28%); }
+
+  .dark .tint-rust     { background: hsl(16 40% 20%);  color: hsl(18 75% 78%); }
+  .dark .tint-espresso { background: hsl(25 18% 22%);  color: hsl(30 35% 82%); }
+  .dark .tint-amber    { background: hsl(36 45% 18%);  color: hsl(40 85% 72%); }
+  .dark .tint-olive    { background: hsl(70 25% 17%);  color: hsl(70 45% 70%); }
+  .dark .tint-green    { background: hsl(150 30% 16%); color: hsl(145 45% 70%); }
+  .dark .tint-teal     { background: hsl(185 35% 15%); color: hsl(180 45% 70%); }
+  .dark .tint-blue     { background: hsl(214 35% 19%); color: hsl(212 75% 78%); }
+  .dark .tint-indigo   { background: hsl(238 25% 21%); color: hsl(236 70% 82%); }
+  .dark .tint-plum     { background: hsl(300 20% 19%); color: hsl(300 45% 80%); }
+  .dark .tint-rose     { background: hsl(350 35% 19%); color: hsl(350 80% 80%); }
+  .dark .tint-slate    { background: hsl(25 8% 20%);   color: hsl(30 12% 78%); }
+
+  .solid-rust     { background: hsl(16 51% 48%);  color: #fff; }
+  .solid-espresso { background: hsl(19 46% 22%);  color: #fff; }
+  .solid-amber    { background: hsl(36 80% 52%);  color: hsl(19 48% 9%); }
+  .solid-olive    { background: hsl(70 40% 36%);  color: #fff; }
+  .solid-green    { background: hsl(150 50% 32%); color: #fff; }
+  .solid-teal     { background: hsl(185 55% 30%); color: #fff; }
+  .solid-blue     { background: hsl(214 60% 45%); color: #fff; }
+  .solid-indigo   { background: hsl(238 45% 52%); color: #fff; }
+  .solid-plum     { background: hsl(300 30% 40%); color: #fff; }
+  .solid-rose     { background: hsl(350 60% 48%); color: #fff; }
+  .solid-slate    { background: hsl(25 10% 40%);  color: #fff; }
+
+  /* Thin, unobtrusive scrollbars for the columns. */
+  .scroll-quiet {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--border)) transparent;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}

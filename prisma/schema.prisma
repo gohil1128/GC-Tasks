@@ -1,0 +1,191 @@
+// GC Tasks — the God's Chai team board.
+//
+// Deliberately its own database, separate from God's Chai Operations: this is
+// a shared to-do board for the owners, not part of the books. Every account is
+// an owner and every owner can see and change everything, so there is no role
+// column — the only line drawn is signed in or not.
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum TaskStatus {
+  TODO
+  IN_PROGRESS
+  DONE
+}
+
+enum Priority {
+  LOW
+  MEDIUM
+  HIGH
+  URGENT
+}
+
+model User {
+  id           String  @id @default(cuid())
+  email        String  @unique
+  name         String
+  passwordHash String
+  // Set when somebody else chose the password (account created or reset by
+  // another owner) and cleared when the person picks their own. Nothing past
+  // the change-password screen loads while it is true.
+  mustChangePassword Boolean @default(false)
+  // Deactivated rather than deleted, so their name stays on the tasks,
+  // comments and history they left behind. A deactivated account cannot sign
+  // in and is not offered as an assignee.
+  active    Boolean  @default(true)
+  // Avatar tint, one of the keys in src/lib/colors.ts.
+  color     String   @default("rust")
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  createdTasks Task[]          @relation("TaskCreatedBy")
+  updatedTasks Task[]          @relation("TaskUpdatedBy")
+  assignments  TaskAssignee[]
+  comments     Comment[]
+  activity     Activity[]
+}
+
+model Task {
+  id          String     @id @default(cuid())
+  title       String
+  description String     @default("")
+  status      TaskStatus @default(TODO)
+  // Order within the column. A float so a card dropped between two others
+  // takes the midpoint and nothing else has to be rewritten; see
+  // src/modules/tasks/position.ts for how gaps are kept from running out.
+  position    Float
+  priority    Priority   @default(MEDIUM)
+  // A calendar day, stored as UTC midnight of that day. Never read it in local
+  // time — see src/lib/dates.ts.
+  dueDate     DateTime?
+  // Bumped on every change to what the task SAYS (title, description,
+  // priority, due date, people, labels). Moving the card does not bump it, so
+  // somebody dragging a card does not invalidate an edit another owner has
+  // open — but two people editing the same task at once do collide, and the
+  // second is told rather than silently overwriting the first.
+  version     Int        @default(1)
+  completedAt DateTime?
+  // Archived tasks drop off the board but are kept, with their history.
+  archivedAt  DateTime?
+  createdAt   DateTime   @default(now())
+  updatedAt   DateTime   @updatedAt
+
+  createdById String
+  createdBy   User   @relation("TaskCreatedBy", fields: [createdById], references: [id])
+  updatedById String
+  updatedBy   User   @relation("TaskUpdatedBy", fields: [updatedById], references: [id])
+
+  assignees TaskAssignee[]
+  labels    TaskLabel[]
+  checklist ChecklistItem[]
+  comments  Comment[]
+  activity  Activity[]
+
+  @@index([status, position])
+  @@index([archivedAt])
+}
+
+model TaskAssignee {
+  taskId     String
+  userId     String
+  assignedAt DateTime @default(now())
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, userId])
+  @@index([userId])
+}
+
+model Label {
+  id        String   @id @default(cuid())
+  name      String   @unique
+  // One of the keys in src/lib/colors.ts.
+  color     String
+  createdAt DateTime @default(now())
+
+  tasks TaskLabel[]
+}
+
+model TaskLabel {
+  taskId  String
+  labelId String
+
+  task  Task  @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  label Label @relation(fields: [labelId], references: [id], onDelete: Cascade)
+
+  @@id([taskId, labelId])
+  @@index([labelId])
+}
+
+model ChecklistItem {
+  id        String   @id @default(cuid())
+  taskId    String
+  text      String
+  done      Boolean  @default(false)
+  position  Float
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, position])
+}
+
+model Comment {
+  id        String   @id @default(cuid())
+  taskId    String
+  authorId  String
+  body      String
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
+
+  @@index([taskId, createdAt])
+}
+
+// What happened to a task, in words a person can read back. Written in the
+// same transaction as the change it describes.
+model Activity {
+  id        String   @id @default(cuid())
+  taskId    String
+  actorId   String
+  // e.g. "created", "moved", "edited", "assigned", "commented" — see
+  // src/modules/tasks/activity.ts for the full list and how each is rendered.
+  type      String
+  detail    Json     @default("{}")
+  createdAt DateTime @default(now())
+
+  task  Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  actor User @relation(fields: [actorId], references: [id])
+
+  @@index([taskId, createdAt])
+}
+
+// A single row (id = 1) whose revision goes up by one on every write to the
+// board, in the same transaction as the write. Open boards poll it — one
+// indexed read — and only fetch the board again when it has moved.
+model BoardRevision {
+  id        Int      @id @default(1)
+  revision  Int      @default(0)
+  updatedAt DateTime @updatedAt
+}
+
+// Failed sign-ins, per email and per IP, for the lockout in
+// src/modules/auth/rate-limit.ts. Kept in the database rather than in memory
+// because serverless instances do not share memory.
+model LoginAttempt {
+  key         String    @id
+  failures    Int       @default(0)
+  lockedUntil DateTime?
+  updatedAt   DateTime  @updatedAt
+}
