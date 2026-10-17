@@ -31,6 +31,21 @@ const credentialsSchema = z.object({
 
 export const { handlers, auth, signIn, signOut } = NextAuth({
   ...authConfig,
+  /*
+    A wrong password, or a sign-in refused by the lockout, is the system
+    working — not a server error. Auth.js logs both as errors with a stack
+    trace, which buried real problems in the log under every mistyped
+    password. Everything else still goes to console.error.
+  */
+  logger: {
+    error(error) {
+      const type = (error as { type?: string }).type;
+      if (type === "CredentialsSignin") return;
+      const cause = (error as { cause?: { err?: unknown } }).cause;
+      if (type === "CallbackRouteError" && cause?.err instanceof LoginLockedError) return;
+      console.error(error);
+    },
+  },
   providers: [
     Credentials({
       credentials: { email: {}, password: {} },

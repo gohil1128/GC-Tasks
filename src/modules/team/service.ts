@@ -4,6 +4,7 @@ import { colorForSeed } from "@/lib/colors";
 import { canManageTeam, type Actor } from "@/lib/permissions";
 import { generatePassword, hashPassword } from "@/modules/auth/password";
 import { loginKeys } from "@/modules/auth/rate-limit";
+import { bumpRevision, lockBoard, readRevision } from "@/modules/tasks/revision";
 import type { ActionResult, ErrorCode, Member } from "@/modules/tasks/types";
 import {
   activeSchema,
@@ -82,26 +83,24 @@ export function toMember(row: MemberRow): Member {
   return { id: row.id, name: row.name, email: row.email, color: row.color, role: row.role, active: row.active };
 }
 
-/** Serialises every change to the team; released when the transaction ends. */
+/*
+  Serialises every change to the team; both locks are released when the
+  transaction ends.
+
+  The board's own write lock is taken second, straight away, rather than
+  left to the revision bump at the end. Task writes take that lock FIRST and
+  then touch assignment rows; a team change that touched assignment rows
+  (deactivating someone drops them from every card) and only then reached
+  for the board lock would hold what a task write wants while wanting what
+  it holds — a deadlock. Taking it up front keeps one order everywhere:
+  team lock, board lock, rows.
+*/
 export async function lockTeam(tx: Tx): Promise<void> {
   await tx.$executeRawUnsafe(`SELECT pg_advisory_xact_lock(${TEAM_LOCK_KEY})`);
+  await lockBoard(tx);
 }
 
-/** The board changed: one more revision, in the same transaction as the change. */
-export async function bumpRevision(tx: Tx): Promise<number> {
-  const row = await tx.boardRevision.upsert({
-    where: { id: 1 },
-    create: { id: 1, revision: 1 },
-    update: { revision: { increment: 1 } },
-    select: { revision: true },
-  });
-  return row.revision;
-}
-
-async function readRevision(tx: Tx): Promise<number> {
-  const row = await tx.boardRevision.findUnique({ where: { id: 1 }, select: { revision: true } });
-  return row?.revision ?? 0;
-}
+export { bumpRevision };
 
 /*
   The session said owner when the request started; this asks the database
