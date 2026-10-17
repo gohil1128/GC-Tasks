@@ -94,7 +94,7 @@ function CardContent({ card, ids }: { card: TaskCardData; ids?: Ids }) {
       </p>
 
       {hasMetaRow(card) && (
-        <div id={ids?.meta} className="mt-2 flex min-h-6 items-center gap-2 text-2xs">
+        <div id={ids?.meta} className="mt-2 flex min-h-6 flex-wrap items-center gap-x-2 gap-y-1 text-2xs">
           {(urgent || high) && (
             <span
               className={cn(

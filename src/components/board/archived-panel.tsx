@@ -14,6 +14,7 @@ import { cn } from "@/lib/utils";
 import { deleteTaskAction, restoreTaskAction } from "@/modules/tasks/actions";
 import { STATUS_LABEL, type ArchivedTask, type TaskCard } from "@/modules/tasks/types";
 import { useBoard } from "./board-context";
+import { leaveFor } from "./use-board-sync";
 
 type Load = { state: "loading" } | { state: "error" } | { state: "ready"; tasks: ArchivedTask[] };
 
@@ -51,10 +52,7 @@ export function ArchivedPanel({
     setLoad({ state: "loading" });
     try {
       const res = await fetch("/api/board/archived", { cache: "no-store", headers: { accept: "application/json" } });
-      if (res.status === 401) {
-        window.location.href = "/login";
-        return;
-      }
+      if (leaveFor(res.status)) return;
       if (!res.ok) throw new Error(String(res.status));
       setLoad({ state: "ready", tasks: (await res.json()) as ArchivedTask[] });
     } catch {

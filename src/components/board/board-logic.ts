@@ -36,6 +36,13 @@ export type BoardFilters = {
 
 export const NO_FILTERS: BoardFilters = { query: "", people: [], labelIds: [], priorities: [] };
 
+/** Ids for cards that exist only in this browser until the server answers a quick add. */
+export const TEMP_PREFIX = "pending:";
+
+export function isTempId(id: string): boolean {
+  return id.startsWith(TEMP_PREFIX);
+}
+
 export function hasFilters(filters: BoardFilters): boolean {
   return (
     filters.query.trim() !== "" ||
@@ -128,14 +135,20 @@ export function filterTasks(
 
 // ── Moving ────────────────────────────────────────────────────────────────
 
-/** The cards directly above and below `cardId` in a column's FULL order — what moveTaskAction wants. */
+/**
+  The cards directly above and below `cardId` in a column's FULL order — what
+  moveTaskAction wants. A quick-added card still waiting on the server is
+  stepped over: the server has never heard of its id, and it is headed for
+  the top of its column anyway.
+*/
 export function neighboursFor(
   columnIds: readonly string[],
   cardId: string,
 ): { afterId: string | null; beforeId: string | null } {
-  const i = columnIds.indexOf(cardId);
+  const ids = columnIds.filter((id) => id === cardId || !isTempId(id));
+  const i = ids.indexOf(cardId);
   if (i < 0) return { afterId: null, beforeId: null };
-  return { afterId: columnIds[i - 1] ?? null, beforeId: columnIds[i + 1] ?? null };
+  return { afterId: ids[i - 1] ?? null, beforeId: ids[i + 1] ?? null };
 }
 
 /**

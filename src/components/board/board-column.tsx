@@ -81,7 +81,8 @@ export function BoardColumn({
     <section
       ref={setNodeRef}
       id={columnElementId(status)}
-      aria-labelledby={titleId}
+      role="region"
+      aria-label={label}
       className={cn(
         "min-h-0 flex-1 flex-col rounded-2xl bg-column ring-inset transition-shadow md:flex",
         shown ? "flex" : "hidden",

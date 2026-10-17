@@ -39,7 +39,8 @@ export type BoardSync = {
   offline: boolean;
 };
 
-function leaveFor(status: number): boolean {
+/** Sends the browser where a read route's refusal points; true if it did. */
+export function leaveFor(status: number): boolean {
   if (status === 401) {
     window.location.href = "/login";
     return true;

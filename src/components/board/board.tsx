@@ -366,6 +366,7 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
       return { ...b, tasks: result.ok ? upsertTask(without, result.data) : without };
     });
     if (result.ok) sync.noteRevision(result.revision);
+    else sync.refresh();
   }
 
   function moveViaMenu(card: TaskCard, to: Status) {
@@ -560,8 +561,10 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
     }
 
     // Reordering happens among the cards on screen; it is then carried over
-    // to the full column so the cards a filter hides keep their places.
-    let columnIds = d.columns[status];
+    // to the full column so the cards a filter hides keep their places. The
+    // column is the one snapshotted at pick-up, so anything a write settled
+    // off the board since then is left out of it first.
+    let columnIds = d.columns[status].filter((id) => taskByIdRef.current.has(id));
     const overId = String(over.id);
     if (overId !== activeId && columnIds.includes(overId)) {
       const visible = columnIds.filter((id) => id === activeId || visibleIdsRef.current.has(id));

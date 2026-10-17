@@ -40,12 +40,7 @@ export function useBoard(): BoardContextValue {
   return value;
 }
 
-/** Ids for cards that exist only in this browser until the server answers a quick add. */
-export const TEMP_PREFIX = "pending:";
-
-export function isTempId(id: string): boolean {
-  return id.startsWith(TEMP_PREFIX);
-}
+export { TEMP_PREFIX, isTempId } from "./board-logic";
 
 function subscribeToClock(onChange: () => void): () => void {
   const timer = setInterval(onChange, 60_000);
