@@ -136,53 +136,59 @@
     letter-spacing: -0.02em;
   }
 
-  /*
-    Label and avatar tints. Keys match src/lib/colors.ts. Each `tint-*` is a
-    soft chip (background + readable ink); each `solid-*` a filled swatch
-    with white or near-black text, whichever reads.
-  */
-  .tint-rust     { background: hsl(20 60% 92%);  color: hsl(16 60% 32%); }
-  .tint-espresso { background: hsl(25 25% 88%);  color: hsl(19 46% 18%); }
-  .tint-amber    { background: hsl(40 85% 88%);  color: hsl(32 80% 26%); }
-  .tint-olive    { background: hsl(70 35% 86%);  color: hsl(70 45% 22%); }
-  .tint-green    { background: hsl(145 40% 88%); color: hsl(150 55% 22%); }
-  .tint-teal     { background: hsl(180 35% 86%); color: hsl(185 60% 22%); }
-  .tint-blue     { background: hsl(212 60% 91%); color: hsl(214 60% 32%); }
-  .tint-indigo   { background: hsl(236 50% 92%); color: hsl(238 45% 38%); }
-  .tint-plum     { background: hsl(300 30% 90%); color: hsl(300 35% 30%); }
-  .tint-rose     { background: hsl(350 70% 92%); color: hsl(350 55% 34%); }
-  .tint-slate    { background: hsl(30 10% 88%);  color: hsl(25 12% 28%); }
-
-  .dark .tint-rust     { background: hsl(16 40% 20%);  color: hsl(18 75% 78%); }
-  .dark .tint-espresso { background: hsl(25 18% 22%);  color: hsl(30 35% 82%); }
-  .dark .tint-amber    { background: hsl(36 45% 18%);  color: hsl(40 85% 72%); }
-  .dark .tint-olive    { background: hsl(70 25% 17%);  color: hsl(70 45% 70%); }
-  .dark .tint-green    { background: hsl(150 30% 16%); color: hsl(145 45% 70%); }
-  .dark .tint-teal     { background: hsl(185 35% 15%); color: hsl(180 45% 70%); }
-  .dark .tint-blue     { background: hsl(214 35% 19%); color: hsl(212 75% 78%); }
-  .dark .tint-indigo   { background: hsl(238 25% 21%); color: hsl(236 70% 82%); }
-  .dark .tint-plum     { background: hsl(300 20% 19%); color: hsl(300 45% 80%); }
-  .dark .tint-rose     { background: hsl(350 35% 19%); color: hsl(350 80% 80%); }
-  .dark .tint-slate    { background: hsl(25 8% 20%);   color: hsl(30 12% 78%); }
-
-  .solid-rust     { background: hsl(16 51% 48%);  color: #fff; }
-  .solid-espresso { background: hsl(19 46% 22%);  color: #fff; }
-  .solid-amber    { background: hsl(36 80% 52%);  color: hsl(19 48% 9%); }
-  .solid-olive    { background: hsl(70 40% 36%);  color: #fff; }
-  .solid-green    { background: hsl(150 50% 32%); color: #fff; }
-  .solid-teal     { background: hsl(185 55% 30%); color: #fff; }
-  .solid-blue     { background: hsl(214 60% 45%); color: #fff; }
-  .solid-indigo   { background: hsl(238 45% 52%); color: #fff; }
-  .solid-plum     { background: hsl(300 30% 40%); color: #fff; }
-  .solid-rose     { background: hsl(350 60% 48%); color: #fff; }
-  .solid-slate    { background: hsl(25 10% 40%);  color: #fff; }
-
   /* Thin, unobtrusive scrollbars for the columns. */
   .scroll-quiet {
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
   }
 }
+
+/*
+  Outside any @layer on purpose. Tailwind drops a layered class it cannot
+  find written out in the source, and these are always built from a stored
+  key (`solid-${key}`), so inside @layer components every avatar fill was
+  silently missing from the production stylesheet.
+*/
+/*
+  Label and avatar tints. Keys match src/lib/colors.ts. Each `tint-*` is a
+  soft chip (background + readable ink); each `solid-*` a filled swatch
+  with white or near-black text, whichever reads.
+*/
+.tint-rust     { background: hsl(20 60% 92%);  color: hsl(16 60% 32%); }
+.tint-espresso { background: hsl(25 25% 88%);  color: hsl(19 46% 18%); }
+.tint-amber    { background: hsl(40 85% 88%);  color: hsl(32 80% 26%); }
+.tint-olive    { background: hsl(70 35% 86%);  color: hsl(70 45% 22%); }
+.tint-green    { background: hsl(145 40% 88%); color: hsl(150 55% 22%); }
+.tint-teal     { background: hsl(180 35% 86%); color: hsl(185 60% 22%); }
+.tint-blue     { background: hsl(212 60% 91%); color: hsl(214 60% 32%); }
+.tint-indigo   { background: hsl(236 50% 92%); color: hsl(238 45% 38%); }
+.tint-plum     { background: hsl(300 30% 90%); color: hsl(300 35% 30%); }
+.tint-rose     { background: hsl(350 70% 92%); color: hsl(350 55% 34%); }
+.tint-slate    { background: hsl(30 10% 88%);  color: hsl(25 12% 28%); }
+
+.dark .tint-rust     { background: hsl(16 40% 20%);  color: hsl(18 75% 78%); }
+.dark .tint-espresso { background: hsl(25 18% 22%);  color: hsl(30 35% 82%); }
+.dark .tint-amber    { background: hsl(36 45% 18%);  color: hsl(40 85% 72%); }
+.dark .tint-olive    { background: hsl(70 25% 17%);  color: hsl(70 45% 70%); }
+.dark .tint-green    { background: hsl(150 30% 16%); color: hsl(145 45% 70%); }
+.dark .tint-teal     { background: hsl(185 35% 15%); color: hsl(180 45% 70%); }
+.dark .tint-blue     { background: hsl(214 35% 19%); color: hsl(212 75% 78%); }
+.dark .tint-indigo   { background: hsl(238 25% 21%); color: hsl(236 70% 82%); }
+.dark .tint-plum     { background: hsl(300 20% 19%); color: hsl(300 45% 80%); }
+.dark .tint-rose     { background: hsl(350 35% 19%); color: hsl(350 80% 80%); }
+.dark .tint-slate    { background: hsl(25 8% 20%);   color: hsl(30 12% 78%); }
+
+.solid-rust     { background: hsl(16 51% 48%);  color: #fff; }
+.solid-espresso { background: hsl(19 46% 22%);  color: #fff; }
+.solid-amber    { background: hsl(36 80% 52%);  color: hsl(19 48% 9%); }
+.solid-olive    { background: hsl(70 40% 36%);  color: #fff; }
+.solid-green    { background: hsl(150 50% 32%); color: #fff; }
+.solid-teal     { background: hsl(185 55% 30%); color: #fff; }
+.solid-blue     { background: hsl(214 60% 45%); color: #fff; }
+.solid-indigo   { background: hsl(238 45% 52%); color: #fff; }
+.solid-plum     { background: hsl(300 30% 40%); color: #fff; }
+.solid-rose     { background: hsl(350 60% 48%); color: #fff; }
+.solid-slate    { background: hsl(25 10% 40%);  color: #fff; }
 
 @media (prefers-reduced-motion: reduce) {
   *,

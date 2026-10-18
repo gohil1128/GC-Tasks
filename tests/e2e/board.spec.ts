@@ -65,6 +65,14 @@ test("add a task and drag it across the board", async ({ page }) => {
   // Dragging an unassigned task into In progress assigns whoever moved it.
   await expect(page.getByText("Assigned to you")).toBeVisible();
 
+  // And their avatar is a filled circle. The fill classes are built from a
+  // stored colour key, which the stylesheet build once dropped without a
+  // word: every avatar rendered as bare initials and no test noticed.
+  const avatar = inProgress.locator("[title]").filter({ hasText: /^[A-Z?]{1,2}/ }).first();
+  await expect(avatar).toBeVisible();
+  const fill = await avatar.evaluate((el) => getComputedStyle(el).backgroundColor);
+  expect(fill).not.toBe("rgba(0, 0, 0, 0)");
+
   await dragTo(page, card(), done);
   await expect(done.getByText(title)).toBeVisible();
 
