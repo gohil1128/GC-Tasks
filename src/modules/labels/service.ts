@@ -19,10 +19,6 @@ const ONLY_OWNERS = "Only owners can manage labels.";
 const LABEL_GONE = "That label no longer exists.";
 const NAME_TAKEN = "A label with that name already exists.";
 
-function forbidden<T>(): ActionResult<T> {
-  return { ok: false, code: "FORBIDDEN", error: ONLY_OWNERS };
-}
-
 /*
   lower() against lower() rather than Prisma's insensitive mode, which is
   ILIKE with the name as the pattern: "K_tchen" would clash with "Kitchen",
@@ -40,9 +36,17 @@ async function assertNameFree(tx: Prisma.TransactionClient, name: string, except
   index nothing to catch. Something writing outside them (a script) still
   could, and that answers as a refusal rather than a crash.
 */
-async function labelWrite<T>(work: (tx: Prisma.TransactionClient) => Promise<Outcome<T>>): Promise<ActionResult<T>> {
+async function labelWrite<T>(
+  actor: Actor,
+  work: (tx: Prisma.TransactionClient) => Promise<Outcome<T>>,
+): Promise<ActionResult<T>> {
   try {
-    return await boardWrite(work);
+    // The role is checked against the person as they are once the board lock
+    // is held, so an owner demoted a moment ago cannot finish a label change.
+    return await boardWrite(actor, async (tx, fresh) => {
+      if (!canManageLabels(fresh)) refuse("FORBIDDEN", ONLY_OWNERS);
+      return work(tx);
+    });
   } catch (err) {
     if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
       return { ok: false, code: "INVALID", error: NAME_TAKEN };
@@ -52,8 +56,7 @@ async function labelWrite<T>(work: (tx: Prisma.TransactionClient) => Promise<Out
 }
 
 export async function createLabel(actor: Actor, input: CreateLabelData): Promise<ActionResult<LabelDTO>> {
-  if (!canManageLabels(actor)) return forbidden();
-  return labelWrite(async (tx) => {
+  return labelWrite(actor, async (tx) => {
     await assertNameFree(tx, input.name);
     const label = await tx.label.create({ data: { name: input.name, color: input.color }, select: labelSelect });
     return changed(toLabel(label));
@@ -62,8 +65,7 @@ export async function createLabel(actor: Actor, input: CreateLabelData): Promise
 
 /** Renaming to a different case of its own name ("kitchen" → "Kitchen") is allowed. */
 export async function updateLabel(actor: Actor, input: UpdateLabelData): Promise<ActionResult<LabelDTO>> {
-  if (!canManageLabels(actor)) return forbidden();
-  return labelWrite(async (tx) => {
+  return labelWrite(actor, async (tx) => {
     const label = await tx.label.findUnique({ where: { id: input.id }, select: labelSelect });
     if (!label) refuse("NOT_FOUND", LABEL_GONE);
     const rename = input.name !== undefined && input.name !== label.name;
@@ -85,8 +87,7 @@ export async function updateLabel(actor: Actor, input: UpdateLabelData): Promise
   records names, not ids.
 */
 export async function deleteLabel(actor: Actor, id: string): Promise<ActionResult<{ id: string }>> {
-  if (!canManageLabels(actor)) return forbidden();
-  return boardWrite(async (tx) => {
+  return labelWrite(actor, async (tx) => {
     const label = await tx.label.findUnique({ where: { id }, select: { id: true } });
     if (!label) refuse("NOT_FOUND", LABEL_GONE);
     await tx.label.delete({ where: { id }, select: { id: true } });

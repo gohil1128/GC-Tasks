@@ -558,12 +558,12 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
   });
 
   describe("board reads", () => {
-    it("lists every member with their role, never a password hash", async () => {
+    it("lists every member with their role, never a password hash or an email", async () => {
       await makeUser("Ali", "STAFF", false);
       const board = await getBoard();
       expect(board.members.map((m) => m.name)).toEqual(["Ali", "Harsh", "Priya"]);
       expect(board.members[0]).toMatchObject({ role: "STAFF", active: false });
-      for (const m of board.members) expect(Object.keys(m).sort()).toEqual(["active", "color", "email", "id", "name", "role"]);
+      for (const m of board.members) expect(Object.keys(m).sort()).toEqual(["active", "color", "id", "name", "role"]);
     });
 
     it("sorts tasks by column then position", async () => {
@@ -690,6 +690,63 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       refused(await svc.updateChecklistItem(staff, { id: item.id, done: true }), "INVALID");
       refused(await svc.addComment(staff, { taskId: t.id, body: "x" }), "INVALID");
       refused(await svc.leaveTask(staff, t.id), "INVALID");
+    });
+  });
+
+  describe("who is acting, read under the lock", () => {
+    it("refuses a write from an account deactivated before it ran", async () => {
+      const owner = await makeUser("Olivia");
+      const staff = await makeUser("Sam", "STAFF");
+      const t = data(await create(owner, { title: "Unclaimed" }));
+      // The session said active when the request began; by the time the write
+      // holds the lock the account has been switched off.
+      await prisma.user.update({ where: { id: staff.id }, data: { active: false } });
+      refused(await svc.joinTask(staff, t.id), "UNAUTHORIZED");
+      expect((await card(t.id)).assigneeIds).toEqual([]);
+    });
+
+    it("checks an owner's action against their role now, not when the request began", async () => {
+      const owner = await makeUser("Olivia");
+      const demoted = await makeUser("Dev");
+      await prisma.user.update({ where: { id: demoted.id }, data: { role: "STAFF" } });
+      // `demoted` still says OWNER, as a session read a moment earlier would.
+      refused(await create(demoted, { title: "Sneaky" }), "FORBIDDEN");
+      refused(await newLabel(demoted, "Sneaky"), "FORBIDDEN");
+      const t = data(await create(owner, { title: "T" }));
+      refused(await svc.deleteTask(demoted, t.id), "FORBIDDEN");
+      refused(await update(demoted, { id: t.id, version: t.version, title: "x" }), "FORBIDDEN");
+    });
+  });
+
+  describe("picking a card up by moving it", () => {
+    it("moves the version, so an owner's open edit of the people is told rather than undoing it", async () => {
+      const alice = await makeUser("Alice");
+      const bob = await makeUser("Bob");
+      const cara = await makeUser("Cara");
+      const t = data(await create(alice, { title: "Unassigned" }));
+
+      const moved = data(await move(bob, t.id, "IN_PROGRESS"));
+      expect(moved.assigneeIds).toEqual([bob.id]);
+      expect(moved.version).toBe(t.version + 1);
+
+      // Alice saves from the version she opened, which no longer has Bob in it.
+      const stale = refused(await update(alice, { id: t.id, version: t.version, assigneeIds: [cara.id] }), "CONFLICT");
+      expect(stale.current?.assigneeIds).toEqual([bob.id]);
+    });
+
+    it("still leaves the version alone for a plain move", async () => {
+      const owner = await makeUser("Olivia");
+      const t = data(await create(owner, { title: "T", assigneeIds: [owner.id] }));
+      expect(data(await move(owner, t.id, "IN_PROGRESS")).version).toBe(t.version);
+    });
+  });
+
+  describe("what the board tells every account", () => {
+    it("leaves out email addresses", async () => {
+      await makeUser("Sam", "STAFF");
+      const board = await getBoard();
+      expect(board.members.length).toBeGreaterThan(1);
+      for (const member of board.members) expect(member).not.toHaveProperty("email");
     });
   });
 });

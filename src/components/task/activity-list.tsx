@@ -4,10 +4,10 @@ import { ChevronRight, History } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { timeAgo } from "@/lib/dates";
 import { cn } from "@/lib/utils";
-import type { ActivityDTO, Member } from "@/modules/tasks/types";
+import type { ActivityDTO, BoardMember } from "@/modules/tasks/types";
 import { activityLine } from "./task-logic";
 
-const UNKNOWN: Member = { id: "", name: "Someone", email: "", color: "slate", role: "STAFF", active: false };
+const UNKNOWN: BoardMember = { id: "", name: "Someone", color: "slate", role: "STAFF", active: false };
 
 /**
   What has happened to the task, newest first, folded away by default: it is
@@ -21,7 +21,7 @@ export function ActivityList({
   loading,
 }: {
   activity: ActivityDTO[];
-  members: Member[];
+  members: BoardMember[];
   currentUserId: string;
   now: Date;
   loading?: boolean;

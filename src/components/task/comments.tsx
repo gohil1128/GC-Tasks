@@ -8,13 +8,13 @@ import { Textarea } from "@/components/ui/textarea";
 import { timeAgo } from "@/lib/dates";
 import { canDeleteComment, canEditComment, type Actor } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
-import type { CommentDTO, Member } from "@/modules/tasks/types";
+import type { CommentDTO, BoardMember } from "@/modules/tasks/types";
 import { isSubmitShortcut, useAutoGrow } from "./hooks";
 import { wasEdited } from "./task-logic";
 
 const COMMENT_MAX = 5_000;
 
-const UNKNOWN: Member = { id: "", name: "Someone", email: "", color: "slate", role: "STAFF", active: false };
+const UNKNOWN: BoardMember = { id: "", name: "Someone", color: "slate", role: "STAFF", active: false };
 
 function CommentBox({
   value,
@@ -80,7 +80,7 @@ function CommentItem({
   onRequestDelete,
 }: {
   comment: CommentDTO;
-  author: Member;
+  author: BoardMember;
   actor: Actor;
   now: Date;
   canAct: boolean;
@@ -197,7 +197,7 @@ export function Comments({
   onDelete,
 }: {
   comments: CommentDTO[];
-  members: Member[];
+  members: BoardMember[];
   actor: Actor;
   now: Date;
   /** False on an archived task: the thread is shown, but frozen. */

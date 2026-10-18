@@ -27,7 +27,7 @@ export const PRIORITY_LABEL: Record<Priority, string> = {
   URGENT: "Urgent",
 };
 
-/** A teammate. Deactivated members still appear so old cards keep their names. */
+/** A teammate, as the owners-only Team page sees them. */
 export type Member = {
   id: string;
   name: string;
@@ -36,6 +36,15 @@ export type Member = {
   role: Role;
   active: boolean;
 };
+
+/**
+  A teammate as the board sees them: everything a card, a picker or a filter
+  needs, and not their email. The board goes to every account, staff
+  included, and an email list of the whole team — leavers too — is the Team
+  page's to show, which only owners can open. Deactivated members still
+  appear so old cards keep their names.
+*/
+export type BoardMember = Omit<Member, "email">;
 
 export type LabelDTO = {
   id: string;
@@ -75,7 +84,7 @@ export type BoardData = {
   /** Every non-archived task, sorted by status then position. */
   tasks: TaskCard[];
   /** Every account, active or not, sorted by name. */
-  members: Member[];
+  members: BoardMember[];
   /** Every label, sorted by name. */
   labels: LabelDTO[];
 };

@@ -71,7 +71,11 @@ async function main(prisma: PrismaClient): Promise<void> {
   const password = generated ? generatePassword() : check(passwordSchema.safeParse(values.password), "--password");
   const passwordHash = await hashPassword(password);
 
-  const existing = await prisma.user.findFirst({ where: { email: { equals: email, mode: "insensitive" } } });
+  // lower() against lower(), not Prisma's insensitive mode: that is ILIKE with
+  // the address as the pattern, where "_" and "%" match other addresses.
+  const [match] = await prisma.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "User" WHERE lower("email") = lower(${email}) LIMIT 1`;
+  const existing = match ? await prisma.user.findUnique({ where: { id: match.id } }) : null;
 
   let role: Role;
   let verb: string;
@@ -82,18 +86,27 @@ async function main(prisma: PrismaClient): Promise<void> {
       const others = await prisma.user.count({ where: { role: "OWNER", active: true, id: { not: existing.id } } });
       if (others === 0) throw new Refused(`${existing.email} is the last active owner and cannot be made staff.`);
     }
+    // The board row first: every board write locks it before any user row,
+    // and taking them in the other order could deadlock with one.
     await prisma.$transaction([
-      prisma.user.update({
-        where: { id: existing.id },
-        data: { passwordHash, mustChangePassword: generated, role, ...(name ? { name } : {}) },
-      }),
-      // Usually the reason for running this: a lockout after too many tries.
-      prisma.loginAttempt.deleteMany({ where: { key: `email:${existing.email}` } }),
       prisma.boardRevision.upsert({
         where: { id: 1 },
         create: { id: 1, revision: 1 },
         update: { revision: { increment: 1 } },
       }),
+      prisma.user.update({
+        where: { id: existing.id },
+        data: {
+          passwordHash,
+          mustChangePassword: generated,
+          role,
+          // A new password signs out every session issued with the old one.
+          sessionVersion: { increment: 1 },
+          ...(name ? { name } : {}),
+        },
+      }),
+      // Usually the reason for running this: a lockout after too many tries.
+      prisma.loginAttempt.deleteMany({ where: { key: `email:${existing.email}` } }),
     ]);
     verb = "Reset";
     if (!existing.active) {
@@ -104,13 +117,13 @@ async function main(prisma: PrismaClient): Promise<void> {
     if (!name) throw new UsageError("--name is required when creating an account.");
     role = requestedRole ?? ((await prisma.user.count()) === 0 ? "OWNER" : "STAFF");
     await prisma.$transaction([
-      prisma.user.create({
-        data: { email, name, passwordHash, role, mustChangePassword: generated, color: colorForSeed(email) },
-      }),
       prisma.boardRevision.upsert({
         where: { id: 1 },
         create: { id: 1, revision: 1 },
         update: { revision: { increment: 1 } },
+      }),
+      prisma.user.create({
+        data: { email, name, passwordHash, role, mustChangePassword: generated, color: colorForSeed(email) },
       }),
     ]);
     verb = "Created";

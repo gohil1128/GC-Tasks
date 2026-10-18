@@ -7,14 +7,14 @@ import {
   checklistItemSelect,
   commentSelect,
   labelSelect,
-  memberSelect,
+  boardMemberSelect,
   taskCardSelect,
   toActivity,
   toArchivedTask,
   toChecklistItem,
   toComment,
   toLabel,
-  toMember,
+  toBoardMember,
   toTaskCard,
 } from "@/modules/tasks/mappers";
 import { readRevision } from "@/modules/tasks/revision";
@@ -46,7 +46,7 @@ export async function getBoard(): Promise<BoardData> {
         // Postgres orders an enum by declaration: TODO, IN_PROGRESS, DONE.
         orderBy: [{ status: "asc" }, { position: "asc" }, { id: "asc" }],
       }),
-      prisma.user.findMany({ select: memberSelect, orderBy: [{ name: "asc" }, { id: "asc" }] }),
+      prisma.user.findMany({ select: boardMemberSelect, orderBy: [{ name: "asc" }, { id: "asc" }] }),
       prisma.label.findMany({ select: labelSelect, orderBy: { name: "asc" } }),
     ],
     { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead },
@@ -54,7 +54,7 @@ export async function getBoard(): Promise<BoardData> {
   return {
     revision: revision?.revision ?? 0,
     tasks: tasks.map(toTaskCard),
-    members: members.map(toMember),
+    members: members.map(toBoardMember),
     labels: labels.map(toLabel),
   };
 }

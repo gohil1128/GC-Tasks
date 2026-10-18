@@ -150,3 +150,24 @@ describe("idSchema", () => {
     expect(parseInput(idSchema, 7).ok).toBe(false);
   });
 });
+
+describe("hidden characters", () => {
+  // Postgres text cannot store U+0000; let through, it fails the write itself.
+  const NUL = "\u0000";
+
+  it("refuses a NUL anywhere a string reaches the database, in words a person can read", () => {
+    const message = "That contains a hidden character that can't be saved. Retype it and try again.";
+    expect(err(parseInput(createTaskSchema, { title: `Milk${NUL}run` }))).toBe(message);
+    expect(err(parseInput(createTaskSchema, { title: "Milk run", description: `a${NUL}` }))).toBe(message);
+    expect(err(parseInput(addCommentSchema, { taskId: "t1", body: `a${NUL}b` }))).toBe(message);
+    expect(err(parseInput(addChecklistItemSchema, { taskId: "t1", text: `a${NUL}` }))).toBe(message);
+    expect(err(parseInput(createLabelSchema, { name: `K${NUL}`, color: "teal" }))).toBe(message);
+    expect(idSchema.safeParse(`id${NUL}`).success).toBe(false);
+  });
+
+  it("leaves ordinary text alone", () => {
+    expect(ok(parseInput(addCommentSchema, { taskId: "t1", body: "Order milk — 2× oat" })).body).toBe(
+      "Order milk — 2× oat",
+    );
+  });
+});

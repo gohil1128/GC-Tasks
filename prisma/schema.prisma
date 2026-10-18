@@ -83,8 +83,9 @@ model Task {
   // Bumped on every change to what the task SAYS (title, description,
   // priority, due date, people, labels). Moving the card does not bump it, so
   // somebody dragging a card does not invalidate an edit another owner has
-  // open — but two people editing the same task at once do collide, and the
-  // second is told rather than silently overwriting the first.
+  // open — unless the move picks it up for the mover, which adds a person —
+  // but two people editing the same task at once do collide, and the second
+  // is told rather than silently overwriting the first.
   version     Int        @default(1)
   completedAt DateTime?
   // Archived tasks drop off the board but are kept, with their history.

@@ -12,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { tintClass } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-import { PRIORITIES, PRIORITY_LABEL, type LabelDTO, type Member, type Priority } from "@/modules/tasks/types";
+import { PRIORITIES, PRIORITY_LABEL, type LabelDTO, type BoardMember, type Priority } from "@/modules/tasks/types";
 import { ME, NOBODY, hasFilters, type BoardFilters } from "./board-logic";
 
 const chip =
@@ -45,7 +45,7 @@ export function BoardToolbar({
   filters: BoardFilters;
   onFiltersChange: (next: BoardFilters) => void;
   /** Who can be picked in the people filter, already narrowed to those worth showing. */
-  members: Member[];
+  members: BoardMember[];
   labels: LabelDTO[];
   currentUserId: string;
   canCreate: boolean;
@@ -289,7 +289,7 @@ function PeopleFilter({
   selected,
   onChange,
 }: {
-  members: Member[];
+  members: BoardMember[];
   currentUserId: string;
   selected: string[];
   onChange: (people: string[]) => void;

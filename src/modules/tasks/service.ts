@@ -55,9 +55,11 @@ import type {
   and bumps the revision. A refusal throws inside the transaction so nothing
   is left half-done, and comes back out as { ok:false }.
 
-  Role-only rules (owners create, edit, archive, delete) are checked before
-  the transaction: they depend on nothing in the database but the actor's
-  role, which requireUser() has just read fresh.
+  The actor too is re-read inside the transaction, after the lock: each
+  write's callback takes a fresh `actor` from boardWrite() that shadows the
+  one the function was called with, on purpose, so every check below — the
+  role-only ones (owners create, edit, archive, delete) included — runs
+  against who the person is now, not who they were when the request began.
 */
 
 type Tx = Prisma.TransactionClient;
@@ -175,8 +177,8 @@ async function rebalanceColumn(tx: Tx, orderedIds: string[]): Promise<void> {
 
 /** New tasks go to the TOP of their column. */
 export async function createTask(actor: Actor, input: CreateTaskData): Promise<ActionResult<TaskCard>> {
-  if (!canCreateTask(actor)) return fail("FORBIDDEN", "Only owners can create tasks.");
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
+    if (!canCreateTask(actor)) refuse("FORBIDDEN", "Only owners can create tasks.");
     await assertAssignable(tx, input.assigneeIds);
     const labels = await existingLabels(tx, input.labelIds);
     const top = await tx.task.aggregate({
@@ -215,9 +217,8 @@ export async function createTask(actor: Actor, input: CreateTaskData): Promise<A
   that changes nothing writes nothing and keeps the version.
 */
 export async function updateTask(actor: Actor, input: UpdateTaskData): Promise<ActionResult<TaskCard>> {
-  if (!canEditTask(actor)) return fail("FORBIDDEN", "Only owners can edit tasks.");
-
-  const result = await boardWrite(async (tx) => {
+  const result = await boardWrite(actor, async (tx, actor) => {
+    if (!canEditTask(actor)) refuse("FORBIDDEN", "Only owners can edit tasks.");
     const task = await tx.task.findUnique({
       where: { id: input.id },
       select: {
@@ -340,7 +341,7 @@ function moveRefusal(actor: Actor, task: TaskAccess): string {
   a column records no activity.
 */
 export async function moveTask(actor: Actor, input: MoveTaskData): Promise<ActionResult<TaskCard>> {
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
     const task = await loadAccess(tx, input.id);
     assertLive(task);
     if (!canMoveTask(actor, task)) refuse("FORBIDDEN", moveRefusal(actor, task));
@@ -365,7 +366,15 @@ export async function moveTask(actor: Actor, input: MoveTaskData): Promise<Actio
 
     await tx.task.update({
       where: { id: task.id },
-      data: { status: to, position, updatedById: actor.id, ...(completedAt !== undefined ? { completedAt } : {}) },
+      data: {
+        status: to,
+        position,
+        updatedById: actor.id,
+        ...(completedAt !== undefined ? { completedAt } : {}),
+        // Picking the card up adds a person, and people are content: an owner
+        // with this task open must be told, not left to save over the mover.
+        ...(autoAssign ? { version: { increment: 1 } } : {}),
+      },
       select: { id: true },
     });
     if (autoAssign) await tx.taskAssignee.createMany({ data: assignmentRows(task.id, [actor.id]) });
@@ -381,8 +390,8 @@ export async function moveTask(actor: Actor, input: MoveTaskData): Promise<Actio
 
 /** Hard delete; the checklist, comments, history and links go with it. */
 export async function deleteTask(actor: Actor, id: string): Promise<ActionResult<{ id: string }>> {
-  if (!canArchiveOrDelete(actor)) return fail("FORBIDDEN", "Only owners can delete tasks.");
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
+    if (!canArchiveOrDelete(actor)) refuse("FORBIDDEN", "Only owners can delete tasks.");
     const task = await tx.task.findUnique({ where: { id }, select: { id: true } });
     if (!task) refuse("NOT_FOUND", MSG.taskGone);
     await tx.task.delete({ where: { id }, select: { id: true } });
@@ -391,8 +400,8 @@ export async function deleteTask(actor: Actor, id: string): Promise<ActionResult
 }
 
 export async function archiveTask(actor: Actor, id: string): Promise<ActionResult<{ id: string }>> {
-  if (!canArchiveOrDelete(actor)) return fail("FORBIDDEN", "Only owners can archive tasks.");
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
+    if (!canArchiveOrDelete(actor)) refuse("FORBIDDEN", "Only owners can archive tasks.");
     const task = await tx.task.findUnique({ where: { id }, select: { id: true, archivedAt: true } });
     if (!task) refuse("NOT_FOUND", MSG.taskGone);
     if (task.archivedAt) return unchanged({ id });
@@ -411,8 +420,8 @@ export async function archiveTask(actor: Actor, id: string): Promise<ActionResul
   old position means nothing after the column has moved on without it.
 */
 export async function restoreTask(actor: Actor, id: string): Promise<ActionResult<TaskCard>> {
-  if (!canArchiveOrDelete(actor)) return fail("FORBIDDEN", "Only owners can restore tasks.");
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
+    if (!canArchiveOrDelete(actor)) refuse("FORBIDDEN", "Only owners can restore tasks.");
     const task = await tx.task.findUnique({ where: { id }, select: { id: true, status: true, archivedAt: true } });
     if (!task) refuse("NOT_FOUND", MSG.taskGone);
     if (!task.archivedAt) return unchanged(await readCard(tx, id));
@@ -432,8 +441,8 @@ export async function restoreTask(actor: Actor, id: string): Promise<ActionResul
 
 /** Archive every task in Done. */
 export async function archiveDone(actor: Actor): Promise<ActionResult<{ count: number }>> {
-  if (!canArchiveOrDelete(actor)) return fail("FORBIDDEN", "Only owners can archive tasks.");
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
+    if (!canArchiveOrDelete(actor)) refuse("FORBIDDEN", "Only owners can archive tasks.");
     const done = await tx.task.findMany({ where: { status: "DONE", archivedAt: null }, select: { id: true } });
     if (done.length === 0) return unchanged({ count: 0 });
     const ids = done.map((t) => t.id);
@@ -451,7 +460,7 @@ export async function archiveDone(actor: Actor): Promise<ActionResult<{ count: n
   edit of the assignee list must not silently undo it.
 */
 export async function joinTask(actor: Actor, id: string): Promise<ActionResult<TaskCard>> {
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
     const task = await loadAccess(tx, id);
     assertLive(task);
     if (task.assigneeIds.includes(actor.id)) return unchanged(await readCard(tx, id));
@@ -476,7 +485,7 @@ export async function joinTask(actor: Actor, id: string): Promise<ActionResult<T
 
 /** Step off a task. Not on it (any more) is a no-op, not an error. */
 export async function leaveTask(actor: Actor, id: string): Promise<ActionResult<TaskCard>> {
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
     const task = await loadAccess(tx, id);
     assertLive(task);
     // On a live task the only thing canLeaveTask can object to is not being
@@ -511,7 +520,7 @@ export async function addChecklistItem(
   actor: Actor,
   input: AddChecklistItemData,
 ): Promise<ActionResult<ChecklistItemDTO>> {
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
     const task = await loadAccess(tx, input.taskId);
     assertCanWorkChecklist(actor, task);
     const last = await tx.checklistItem.aggregate({ where: { taskId: task.id }, _max: { position: true } });
@@ -530,7 +539,7 @@ export async function updateChecklistItem(
   actor: Actor,
   input: UpdateChecklistItemData,
 ): Promise<ActionResult<ChecklistItemDTO>> {
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
     const item = await tx.checklistItem.findUnique({
       where: { id: input.id },
       select: { ...checklistItemSelect, taskId: true },
@@ -559,7 +568,7 @@ export async function updateChecklistItem(
 }
 
 export async function deleteChecklistItem(actor: Actor, id: string): Promise<ActionResult<{ id: string }>> {
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
     const item = await tx.checklistItem.findUnique({ where: { id }, select: { id: true, taskId: true, text: true } });
     if (!item) refuse("NOT_FOUND", MSG.itemGone);
     const task = await loadAccess(tx, item.taskId);
@@ -581,7 +590,7 @@ export async function deleteChecklistItem(actor: Actor, id: string): Promise<Act
 */
 
 export async function addComment(actor: Actor, input: AddCommentData): Promise<ActionResult<CommentDTO>> {
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
     const task = await loadAccess(tx, input.taskId);
     assertLive(task);
     if (!canComment(actor, task)) refuse("FORBIDDEN", "You can't comment on this task.");
@@ -596,7 +605,7 @@ export async function addComment(actor: Actor, input: AddCommentData): Promise<A
 
 /** Only the author may edit a comment — owners included, so nobody's words are put in their mouth. */
 export async function editComment(actor: Actor, input: EditCommentData): Promise<ActionResult<CommentDTO>> {
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
     const comment = await tx.comment.findUnique({
       where: { id: input.id },
       select: { ...commentSelect, taskId: true },
@@ -616,7 +625,7 @@ export async function editComment(actor: Actor, input: EditCommentData): Promise
 
 /** Your own, or anyone's if you are an owner. */
 export async function deleteComment(actor: Actor, id: string): Promise<ActionResult<{ id: string }>> {
-  return boardWrite(async (tx) => {
+  return boardWrite(actor, async (tx, actor) => {
     const comment = await tx.comment.findUnique({ where: { id }, select: { id: true, authorId: true, taskId: true } });
     if (!comment) refuse("NOT_FOUND", MSG.commentGone);
     if (!canDeleteComment(actor, comment)) refuse("FORBIDDEN", "You can only delete your own comments.");

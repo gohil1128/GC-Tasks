@@ -12,10 +12,22 @@ import { PRIORITIES, STATUSES, type ErrorCode } from "@/modules/tasks/types";
   Messages are written to be shown to a person as they are.
 */
 
+/*
+  Postgres text cannot hold a NUL (U+0000). One would pass every length check
+  here and then fail the write itself — a database error and a crash instead
+  of a sentence — so every string is checked for it, ids included: a NUL in a
+  lookup fails the same way.
+*/
+export const HIDDEN_CHARACTER = "That contains a hidden character that can't be saved. Retype it and try again.";
+export function storable(value: string): boolean {
+  return !value.includes("\u0000");
+}
+
 export const idSchema = z
   .string()
   .min(1, "Something is missing from that request.")
-  .max(64, "That id is not valid.");
+  .max(64, "That id is not valid.")
+  .refine(storable, HIDDEN_CHARACTER);
 
 const idList = z
   .array(idSchema)
@@ -29,12 +41,14 @@ const titleSchema = z
   .string()
   .trim()
   .min(1, "Give the task a title.")
-  .max(200, "Keep the title to 200 characters or fewer.");
+  .max(200, "Keep the title to 200 characters or fewer.")
+  .refine(storable, HIDDEN_CHARACTER);
 
 const descriptionSchema = z
   .string()
   .trim()
-  .max(10_000, "Keep the description to 10,000 characters or fewer.");
+  .max(10_000, "Keep the description to 10,000 characters or fewer.")
+  .refine(storable, HIDDEN_CHARACTER);
 
 /** "YYYY-MM-DD" → that day at UTC midnight; null or "" → no due date. */
 const dueDateSchema = z.union([z.string(), z.null()]).transform((value, ctx): Date | null => {
@@ -83,7 +97,8 @@ export const checklistTextSchema = z
   .string()
   .trim()
   .min(1, "Checklist items need some text.")
-  .max(300, "Keep checklist items to 300 characters or fewer.");
+  .max(300, "Keep checklist items to 300 characters or fewer.")
+  .refine(storable, HIDDEN_CHARACTER);
 
 export const addChecklistItemSchema = z.object({ taskId: idSchema, text: checklistTextSchema });
 export type AddChecklistItemData = z.output<typeof addChecklistItemSchema>;
@@ -101,7 +116,8 @@ export const commentBodySchema = z
   .string()
   .trim()
   .min(1, "Write something before posting.")
-  .max(5_000, "Keep comments to 5,000 characters or fewer.");
+  .max(5_000, "Keep comments to 5,000 characters or fewer.")
+  .refine(storable, HIDDEN_CHARACTER);
 
 export const addCommentSchema = z.object({ taskId: idSchema, body: commentBodySchema });
 export type AddCommentData = z.output<typeof addCommentSchema>;
@@ -113,7 +129,8 @@ const labelNameSchema = z
   .string()
   .trim()
   .min(1, "Give the label a name.")
-  .max(80, "Keep label names to 80 characters or fewer.");
+  .max(80, "Keep label names to 80 characters or fewer.")
+  .refine(storable, HIDDEN_CHARACTER);
 
 const colorSchema = z
   .string()

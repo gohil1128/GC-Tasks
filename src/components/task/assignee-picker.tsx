@@ -4,7 +4,7 @@ import { Check, ChevronDown } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
-import type { Member } from "@/modules/tasks/types";
+import type { BoardMember } from "@/modules/tasks/types";
 import { PICKER_TRIGGER_CLASS } from "./field";
 import { onPickerListKeyDown } from "./hooks";
 import { pickableMembers, toggleId } from "./task-logic";
@@ -15,7 +15,7 @@ export function PeopleList({
   currentUserId,
   empty = "Nobody yet",
 }: {
-  people: Member[];
+  people: BoardMember[];
   currentUserId: string;
   empty?: string;
 }) {
@@ -54,7 +54,7 @@ export function AssigneePicker({
 }: {
   /** The field caption's id, so the trigger is announced as "Assignees, Riya and Sam". */
   labelId: string;
-  members: Member[];
+  members: BoardMember[];
   value: string[];
   onChange: (next: string[]) => void;
   readOnly?: boolean;

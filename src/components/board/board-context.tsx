@@ -2,7 +2,7 @@
 import * as React from "react";
 import { localToday } from "@/lib/dates";
 import type { Actor } from "@/lib/permissions";
-import type { LabelDTO, Member, Status, TaskCard } from "@/modules/tasks/types";
+import type { LabelDTO, BoardMember, Status, TaskCard } from "@/modules/tasks/types";
 
 /*
   What every card needs from the board without it being threaded through the
@@ -23,7 +23,7 @@ export type BoardActions = {
 
 export type BoardContextValue = {
   actor: Actor;
-  members: Map<string, Member>;
+  members: Map<string, BoardMember>;
   labels: Map<string, LabelDTO>;
   /** The viewer's calendar day, or null while rendering on the server. */
   today: string | null;

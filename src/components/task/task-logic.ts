@@ -6,7 +6,7 @@ import type {
   ChecklistItemDTO,
   CreateTaskInput,
   LabelDTO,
-  Member,
+  BoardMember,
   Priority,
   Status,
   TaskCard,
@@ -36,7 +36,7 @@ import type {
   staff: a control hidden in error costs a reload, one shown in error just
   fails.
 */
-export function actorFor(members: Member[], userId: string): Actor {
+export function actorFor(members: BoardMember[], userId: string): Actor {
   const me = members.find((m) => m.id === userId);
   return { id: userId, role: me?.role ?? "STAFF" };
 }
@@ -47,7 +47,7 @@ export function actorFor(members: Member[], userId: string): Actor {
   find (should not happen — accounts are deactivated, never deleted) reads as
   "Someone" rather than an id.
 */
-export function namer(members: Member[], currentUserId: string) {
+export function namer(members: BoardMember[], currentUserId: string) {
   const byId = new Map(members.map((m) => [m.id, m.name]));
   const name = (id: string) => byId.get(id) ?? "Someone";
   return {
@@ -57,7 +57,7 @@ export function namer(members: Member[], currentUserId: string) {
 }
 
 /** Members who can be picked: active ones, plus anyone already picked so they can be taken off. */
-export function pickableMembers(members: Member[], selectedIds: string[]): Member[] {
+export function pickableMembers(members: BoardMember[], selectedIds: string[]): BoardMember[] {
   return members.filter((m) => m.active || selectedIds.includes(m.id));
 }
 
@@ -421,7 +421,7 @@ export function dueBadge(
 /** "Created by Riya · 2h ago" and, once it has been changed since, "Last edited by you · 5m ago". */
 export function bylines(
   card: Pick<TaskCard, "createdById" | "createdAt" | "updatedById" | "updatedAt">,
-  members: Member[],
+  members: BoardMember[],
   currentUserId: string,
   now: Date,
 ): { created: string; edited: string | null } {
@@ -434,7 +434,7 @@ export function bylines(
 }
 
 /** One line of history: "You moved this from To do to In progress", "Riya assigned you". */
-export function activityLine(activity: ActivityDTO, members: Member[], currentUserId: string): string {
+export function activityLine(activity: ActivityDTO, members: BoardMember[], currentUserId: string): string {
   const names = namer(members, currentUserId);
   return `${names.subject(activity.actorId)} ${describeActivity(activity, names.object)}`;
 }

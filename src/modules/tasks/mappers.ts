@@ -7,7 +7,7 @@ import type {
   ChecklistItemDTO,
   CommentDTO,
   LabelDTO,
-  Member,
+  BoardMember,
   TaskCard,
 } from "@/modules/tasks/types";
 
@@ -100,18 +100,20 @@ export function toArchivedTask(row: Prisma.TaskGetPayload<{ select: typeof archi
 
 // ── People and labels ──────────────────────────────────────────────────────
 
-/** Never the password hash: this goes to every browser on the board. */
-export const memberSelect = {
+/**
+  This goes to every browser on the board, staff included: never the password
+  hash, and not the email either (see BoardMember).
+*/
+export const boardMemberSelect = {
   id: true,
   name: true,
-  email: true,
   color: true,
   role: true,
   active: true,
 } satisfies Prisma.UserSelect;
 
-export function toMember(row: Prisma.UserGetPayload<{ select: typeof memberSelect }>): Member {
-  return { id: row.id, name: row.name, email: row.email, color: row.color, role: row.role, active: row.active };
+export function toBoardMember(row: Prisma.UserGetPayload<{ select: typeof boardMemberSelect }>): BoardMember {
+  return { id: row.id, name: row.name, color: row.color, role: row.role, active: row.active };
 }
 
 export const labelSelect = { id: true, name: true, color: true } satisfies Prisma.LabelSelect;
