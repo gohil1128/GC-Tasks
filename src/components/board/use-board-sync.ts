@@ -123,7 +123,10 @@ export function useBoardSync({
       }
       const board = (await res.json()) as BoardData;
       succeeded();
-      if (busy() || s.epoch !== startedAt) {
+      // Older than a write this browser has already seen land (a dialog's
+      // save that committed while this read was on its way): applying it
+      // would put the card back where it was and move `known` backwards.
+      if (busy() || s.epoch !== startedAt || board.revision < s.known) {
         want("fetch");
         return;
       }

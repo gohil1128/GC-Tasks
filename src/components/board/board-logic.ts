@@ -43,6 +43,26 @@ export function isTempId(id: string): boolean {
   return id.startsWith(TEMP_PREFIX);
 }
 
+/*
+  The filters as picked, less anything that has since gone: a label another
+  owner deleted, or a person no longer offered (deactivated, and so off every
+  card). Left in, a deleted label that was the only one picked matched no
+  card at all, while the toolbar — which has nothing to show for it — looked
+  as if no filter were on, and only "Clear filters" got the board back.
+  Returns the same object when nothing needed dropping.
+*/
+export function liveFilters(
+  filters: BoardFilters,
+  labelIds: ReadonlySet<string>,
+  offeredPeople: ReadonlySet<string>,
+): BoardFilters {
+  const labels = filters.labelIds.filter((id) => labelIds.has(id));
+  const people = filters.people.filter((id) => id === ME || id === NOBODY || offeredPeople.has(id));
+  return labels.length === filters.labelIds.length && people.length === filters.people.length
+    ? filters
+    : { ...filters, labelIds: labels, people };
+}
+
 export function hasFilters(filters: BoardFilters): boolean {
   return (
     filters.query.trim() !== "" ||

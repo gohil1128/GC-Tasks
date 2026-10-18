@@ -327,11 +327,11 @@ describe("saving content", () => {
   });
 
   it("collects conflicts and lets them go one field at a time", () => {
-    expect(addConflict(null, "u2", {})).toBeNull();
-    const first = addConflict(null, "u2", { title: "Mine" });
-    const both = addConflict(first, "u1", { priority: "LOW" });
-    expect(both).toEqual({ by: "u1", fields: { title: "Mine", priority: "LOW" } });
-    expect(dropConflictField(both, "title")).toEqual({ by: "u1", fields: { priority: "LOW" } });
+    expect(addConflict(null, {})).toBeNull();
+    const first = addConflict(null, { title: "Mine" });
+    const both = addConflict(first, { priority: "LOW" });
+    expect(both).toEqual({ fields: { title: "Mine", priority: "LOW" } });
+    expect(dropConflictField(both, "title")).toEqual({ fields: { priority: "LOW" } });
     expect(dropConflictField(dropConflictField(both, "title"), "priority")).toBeNull();
     expect(dropConflictField(null, "title")).toBeNull();
   });

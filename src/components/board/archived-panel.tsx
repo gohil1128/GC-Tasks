@@ -72,7 +72,12 @@ export function ArchivedPanel({
     setBusyId(task.id);
     const result = await track(runAction(restoreTaskAction(task.id)));
     setBusyId(null);
-    if (!result.ok) return;
+    if (!result.ok) {
+      // Deleted by another owner while this list was open: nothing left to
+      // restore, so take the row away rather than let every retry fail.
+      if (result.code === "NOT_FOUND") drop(task.id);
+      return;
+    }
     drop(task.id);
     onRestored(result.data, result.revision);
     toast.success(`Restored to ${STATUS_LABEL[result.data.status]}.`);
@@ -82,7 +87,15 @@ export function ArchivedPanel({
     if (!deleting) return true;
     const task = deleting;
     const result = await track(runAction(deleteTaskAction(task.id)));
-    if (!result.ok) return false;
+    if (!result.ok) {
+      // Already gone — another owner got there first — is what was wanted;
+      // runAction has said so.
+      if (result.code === "NOT_FOUND") {
+        drop(task.id);
+        return true;
+      }
+      return false;
+    }
     drop(task.id);
     onDeleted(task.id, result.revision);
     toast.success("Task deleted.");

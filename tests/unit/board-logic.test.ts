@@ -3,6 +3,7 @@ import {
   ME,
   NOBODY,
   NO_FILTERS,
+  liveFilters,
   TEMP_PREFIX,
   columnsOf,
   filterTasks,
@@ -238,5 +239,27 @@ describe("optimisticPosition / landedBetween", () => {
     // A neighbour that has since left the column, or the board.
     expect(landedBetween(tasks, card("x", { position: 1536 }), "p", "b")).toBe(false);
     expect(landedBetween(tasks, card("x", { position: 1536 }), "a", "gone")).toBe(false);
+  });
+});
+
+describe("liveFilters", () => {
+  const labels = new Set(["kitchen"]);
+  const offered = new Set(["riya"]);
+
+  it("drops a deleted label and a person no longer offered, keeping the rest", () => {
+    const picked = filters({ labelIds: ["kitchen", "gone"], people: ["riya", "left", ME, NOBODY], query: "milk" });
+    expect(liveFilters(picked, labels, offered)).toEqual(
+      filters({ labelIds: ["kitchen"], people: ["riya", ME, NOBODY], query: "milk" }),
+    );
+  });
+
+  it("leaves no filter on when the only label picked has been deleted", () => {
+    const live = liveFilters(filters({ labelIds: ["gone"] }), labels, offered);
+    expect(hasFilters(live)).toBe(false);
+  });
+
+  it("hands back the same object when nothing has gone", () => {
+    const picked = filters({ labelIds: ["kitchen"], people: [ME] });
+    expect(liveFilters(picked, labels, offered)).toBe(picked);
   });
 });

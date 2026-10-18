@@ -353,12 +353,18 @@ export function settlePending(pending: ContentPatch, patch: ContentPatch): Conte
 }
 
 /** Somebody else's save beat this person's: who, and the values of theirs that were not sent. */
-export type Conflict = { by: string; fields: ScalarPatch };
+/*
+  No author on purpose. The task's last toucher is not the person whose edit
+  clashed: a checklist tick or a drag also stamps updatedById without moving
+  the version, so naming them pointed at the wrong person — often a staff
+  member, who cannot edit these fields at all.
+*/
+export type Conflict = { fields: ScalarPatch };
 
-/** Another clash on top of any still showing; the latest author is the one named. */
-export function addConflict(current: Conflict | null, by: string, fields: ScalarPatch): Conflict | null {
+/** Another clash on top of any still showing. */
+export function addConflict(current: Conflict | null, fields: ScalarPatch): Conflict | null {
   if (!hasFields(fields)) return current;
-  return { by, fields: { ...(current?.fields ?? {}), ...fields } };
+  return { fields: { ...(current?.fields ?? {}), ...fields } };
 }
 
 /** One field dealt with (re-applied or let go); null once none are left. */

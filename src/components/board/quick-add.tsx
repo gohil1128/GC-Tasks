@@ -25,7 +25,8 @@ export function QuickAdd({
   status: Status;
   persistent?: boolean;
   autoFocus?: boolean;
-  onAdd: (title: string) => void;
+  /** Resolves false when the task was not added. */
+  onAdd: (title: string) => Promise<boolean>;
   onClose?: () => void;
   inputRef?: React.Ref<HTMLInputElement>;
 }) {
@@ -36,8 +37,14 @@ export function QuickAdd({
     event.preventDefault();
     const clean = title.trim();
     if (!clean) return;
-    onAdd(clean.slice(0, TITLE_MAX));
+    const sent = clean.slice(0, TITLE_MAX);
     setTitle("");
+    // Cleared at once for rapid entry, but a title the server never took (a
+    // dropped connection, a refusal) comes back to be sent again — unless
+    // something new has been typed since.
+    void onAdd(sent).then((ok) => {
+      if (!ok) setTitle((now) => (now === "" ? sent : now));
+    });
   }
 
   function onKeyDown(event: React.KeyboardEvent<HTMLInputElement>) {

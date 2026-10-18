@@ -63,7 +63,7 @@ export function BoardColumn({
   canCreate: boolean;
   quickAddOpen: boolean;
   onQuickAddOpenChange: (open: boolean) => void;
-  onAdd: (title: string, status: Status) => void;
+  onAdd: (title: string, status: Status) => Promise<boolean>;
   quickAddRef?: React.Ref<HTMLInputElement>;
   headerMenu?: React.ReactNode;
 }) {

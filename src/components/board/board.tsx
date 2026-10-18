@@ -66,6 +66,7 @@ import {
   filterTasks,
   findColumn,
   hasFilters,
+  liveFilters,
   landedBetween,
   moveToColumn,
   moveToTop,
@@ -200,7 +201,7 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
   const canCreate = canCreateTask(actor);
 
   const [board, setBoard] = React.useState<BoardData>(initial);
-  const [filters, setFilters] = React.useState<BoardFilters>(NO_FILTERS);
+  const [picked, setFilters] = React.useState<BoardFilters>(NO_FILTERS);
   const [drag, setDrag] = React.useState<DragState | null>(null);
   const [mobileColumn, setMobileColumn] = React.useState<Status>("TODO");
   const [quickAddColumn, setQuickAddColumn] = React.useState<Status | null>(null);
@@ -227,6 +228,21 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
   const taskById = React.useMemo(() => new Map(board.tasks.map((t) => [t.id, t])), [board.tasks]);
   const membersById = React.useMemo(() => new Map(board.members.map((m) => [m.id, m])), [board.members]);
   const labelsById = React.useMemo(() => new Map(board.labels.map((l) => [l.id, l])), [board.labels]);
+  // The people worth offering in the filter: anyone active, plus anyone
+  // deactivated who is still on a card. The viewer is "My tasks".
+  const filterMembers = React.useMemo(
+    () =>
+      board.members.filter(
+        (m) => m.id !== actor.id && (m.active || board.tasks.some((t) => t.assigneeIds.includes(m.id))),
+      ),
+    [board.members, board.tasks, actor.id],
+  );
+
+  // What is picked, less labels and people that have since gone (see liveFilters).
+  const filters = React.useMemo(
+    () => liveFilters(picked, new Set(labelsById.keys()), new Set(filterMembers.map((m) => m.id))),
+    [picked, labelsById, filterMembers],
+  );
   const baseColumns = React.useMemo(() => columnsOf(board.tasks), [board.tasks]);
   const columns = drag?.columns ?? baseColumns;
   const filtering = hasFilters(filters);
@@ -251,16 +267,6 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
     }
     return out;
   }, [columns, taskById, visibleIds, drag?.activeId]);
-
-  // The people worth offering in the filter: anyone active, plus anyone
-  // deactivated who is still on a card. The viewer is "My tasks".
-  const filterMembers = React.useMemo(
-    () =>
-      board.members.filter(
-        (m) => m.id !== actor.id && (m.active || board.tasks.some((t) => t.assigneeIds.includes(m.id))),
-      ),
-    [board.members, board.tasks, actor.id],
-  );
 
   const totals = React.useMemo(
     () => ({ TODO: columns.TODO.length, IN_PROGRESS: columns.IN_PROGRESS.length, DONE: columns.DONE.length }),
@@ -366,7 +372,7 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
     }
   }
 
-  async function quickAdd(title: string, status: Status) {
+  async function quickAdd(title: string, status: Status): Promise<boolean> {
     const tempId = `${TEMP_PREFIX}${++tempSeq.current}`;
     const now = new Date().toISOString();
     const top = baseColumnsRef.current[status][0] ?? null;
@@ -399,6 +405,7 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
     });
     if (result.ok) sync.noteRevision(result.revision);
     else sync.refresh();
+    return result.ok;
   }
 
   function moveViaMenu(card: TaskCard, to: Status) {
@@ -775,7 +782,7 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
                 canCreate={canCreate}
                 quickAddOpen={quickAddColumn === status}
                 onQuickAddOpenChange={(open) => openQuickAdd(status, open)}
-                onAdd={(title, s) => void quickAdd(title, s)}
+                onAdd={quickAdd}
                 quickAddRef={status === "TODO" ? todoAddRef : undefined}
                 headerMenu={status === "DONE" ? doneMenu : undefined}
               />
@@ -796,7 +803,7 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
         }}
         onTaskChanged={(card, revision) => {
           applyCard(card);
-          sync.noteRevision(revision);
+          if (revision !== null) sync.noteRevision(revision);
         }}
         onTaskRemoved={(id, revision) => {
           dropCard(id);

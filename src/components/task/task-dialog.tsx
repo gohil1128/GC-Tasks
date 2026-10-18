@@ -71,7 +71,6 @@ import {
   isAtLeastAsFresh,
   mergeDetail,
   mergeLabels,
-  namer,
   omitFields,
   planSave,
   revertItem,
@@ -95,8 +94,13 @@ export type TaskDialogProps = {
   board: BoardData;
   currentUserId: string;
   onOpenChange: (open: boolean) => void;
-  /** Any write that changed the card (fields, people, labels, checklist counts, comment count, status). */
-  onTaskChanged: (card: TaskCard, revision: number) => void;
+  /**
+    Any write that changed the card (fields, people, labels, checklist counts,
+    comment count, status). `revision` is null when the card is the dialog's
+    best guess rather than the server's word — the parent should show it but
+    not count the write as seen, so its next poll fetches the truth.
+  */
+  onTaskChanged: (card: TaskCard, revision: number | null) => void;
   /** The task was deleted or archived and should leave the board. */
   onTaskRemoved: (id: string, revision: number) => void;
   /** Labels were created/edited/deleted from inside the dialog; the parent should refetch the board. */
@@ -218,7 +222,6 @@ function TaskDialogBody({
   };
   const boardCard = board.tasks.find((t) => t.id === taskId) ?? null;
   const actor = actorFor(board.members, currentUserId);
-  const names = namer(board.members, currentUserId);
   const now = new Date(useNow());
   const today = localToday(now);
 
@@ -289,12 +292,12 @@ function TaskDialogBody({
   // ── Telling the board ──
 
   const announce = React.useCallback(
-    (next: TaskCard, revision: number) => {
+    (next: TaskCard, revision: number, { counted = false }: { counted?: boolean } = {}) => {
       lastRevision.current = Math.max(lastRevision.current, revision);
       const onBoard = boardCardRef.current;
       // An answer that arrives after the board has already caught up with something newer is not passed on.
       if (onBoard && !isAtLeastAsFresh(next, onBoard)) return;
-      onTaskChangedRef.current(next, revision);
+      onTaskChangedRef.current(next, counted ? null : revision);
     },
     [boardCardRef, onTaskChangedRef],
   );
@@ -307,6 +310,15 @@ function TaskDialogBody({
     [setDetail, announce],
   );
 
+  /*
+    Checklist and comment counts are worked out here, from the dialog's own
+    list — which can be a moment behind: a teammate's added item may already
+    be on the board's card while this list has not reloaded yet. So these
+    announcements are marked `counted`: the board shows them at once but does
+    not take their revision as seen, and its next poll replaces the guess with
+    the server's numbers. Otherwise a stale sum (2 of 2 instead of 2 of 3)
+    would stay on the card until someone else happened to write.
+  */
   /** Checklist counts worked out again from the items, onto the card here and on the board. */
   const syncChecklist = React.useCallback(
     (revision: number | null) => {
@@ -317,7 +329,7 @@ function TaskDialogBody({
       const same = counts.checklistDone === base.checklistDone && counts.checklistTotal === base.checklistTotal;
       if (same && revision === null) return;
       setDetail((prev) => (prev ? { ...prev, ...counts } : prev));
-      announce({ ...base, ...counts }, revision ?? lastRevision.current);
+      announce({ ...base, ...counts }, revision ?? lastRevision.current, { counted: true });
     },
     [detailRef, confirmedCard, setDetail, announce],
   );
@@ -329,7 +341,7 @@ function TaskDialogBody({
       if (!d || !base) return;
       const commentCount = d.comments.length;
       setDetail((prev) => (prev ? { ...prev, commentCount } : prev));
-      announce({ ...base, commentCount }, revision);
+      announce({ ...base, commentCount }, revision, { counted: true });
     },
     [detailRef, confirmedCard, setDetail, announce],
   );
@@ -374,8 +386,7 @@ function TaskDialogBody({
         for (let attempt = 0; latest && attempt < 3 && !removed.current; attempt++) {
           const plan = planSave(omitFields(patch, reported), originals, contentOf(latest));
           if (hasFields(plan.conflicted)) {
-            const by = latest.updatedById;
-            setConflict((c) => addConflict(c, by, plan.conflicted));
+            setConflict((c) => addConflict(c, plan.conflicted));
             reported = { ...reported, ...plan.conflicted };
           }
           if (!hasFields(plan.send)) break;
@@ -383,6 +394,12 @@ function TaskDialogBody({
           if (result.ok) {
             applyResult(result.data, result.revision);
             if (plan.send.description !== undefined) flashSaved();
+            // A field just saved has settled any clash it was in: leaving the
+            // banner up would say "yours wasn't saved" about the value that
+            // just was, and "Use mine" would then save the older one over it.
+            for (const field of SCALAR_FIELDS) {
+              if (plan.send[field] !== undefined) setConflict((c) => dropConflictField(c, field));
+            }
             break;
           }
           if (result.code === "CONFLICT" && result.current) {
@@ -761,7 +778,7 @@ function TaskDialogBody({
         <div role="alert" className="rounded-2xl border border-warning/30 bg-warning-muted p-3 text-sm sm:p-4">
           <p className="flex items-start gap-2 font-semibold text-warning">
             <AlertTriangle className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
-            {names.subject(conflict.by)} changed this task while you were editing.
+            Someone else changed this task while you were editing.
           </p>
           <p className="mt-1 pl-6 text-foreground/80">Their version is showing. Yours wasn&apos;t saved:</p>
           <ul className="mt-3 space-y-2">
@@ -973,7 +990,9 @@ function TaskDialogBody({
 
       <Checklist
         items={detail?.checklist ?? []}
-        canWork={canWork}
+        // Not until the detail has loaded: adding needs it, and an item typed
+        // into a box that cannot send would be cleared and silently lost.
+        canWork={canWork && detail !== null}
         loading={loadingDetail}
         onAdd={(text) => void addItem(text)}
         onToggle={(id, done) => void patchItem(id, { done })}
