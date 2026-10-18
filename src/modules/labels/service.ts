@@ -1,7 +1,7 @@
-import type { Prisma } from "@prisma/client";
+import { Prisma } from "@prisma/client";
 import { canManageLabels, type Actor } from "@/lib/permissions";
 import { labelSelect, toLabel } from "@/modules/tasks/mappers";
-import { boardWrite, changed, refuse, unchanged } from "@/modules/tasks/revision";
+import { boardWrite, changed, refuse, unchanged, type Outcome } from "@/modules/tasks/revision";
 import type { ActionResult, LabelDTO } from "@/modules/tasks/types";
 import type { CreateLabelData, UpdateLabelData } from "@/modules/tasks/validation";
 
@@ -17,22 +17,43 @@ import type { CreateLabelData, UpdateLabelData } from "@/modules/tasks/validatio
 
 const ONLY_OWNERS = "Only owners can manage labels.";
 const LABEL_GONE = "That label no longer exists.";
+const NAME_TAKEN = "A label with that name already exists.";
 
 function forbidden<T>(): ActionResult<T> {
   return { ok: false, code: "FORBIDDEN", error: ONLY_OWNERS };
 }
 
+/*
+  lower() against lower() rather than Prisma's insensitive mode, which is
+  ILIKE with the name as the pattern: "K_tchen" would clash with "Kitchen",
+  and a backslash would let "a\b" past "A\B" or fail the query outright.
+*/
 async function assertNameFree(tx: Prisma.TransactionClient, name: string, exceptId?: string): Promise<void> {
-  const clash = await tx.label.findFirst({
-    where: { name: { equals: name, mode: "insensitive" }, ...(exceptId ? { id: { not: exceptId } } : {}) },
-    select: { name: true },
-  });
+  const others = exceptId ? Prisma.sql`AND "id" <> ${exceptId}` : Prisma.empty;
+  const [clash] = await tx.$queryRaw<{ name: string }[]>`
+    SELECT "name" FROM "Label" WHERE lower("name") = lower(${name}) ${others} LIMIT 1`;
   if (clash) refuse("INVALID", `A label called “${clash.name}” already exists.`);
+}
+
+/*
+  Between label writes the board lock and assertNameFree leave the unique
+  index nothing to catch. Something writing outside them (a script) still
+  could, and that answers as a refusal rather than a crash.
+*/
+async function labelWrite<T>(work: (tx: Prisma.TransactionClient) => Promise<Outcome<T>>): Promise<ActionResult<T>> {
+  try {
+    return await boardWrite(work);
+  } catch (err) {
+    if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002") {
+      return { ok: false, code: "INVALID", error: NAME_TAKEN };
+    }
+    throw err;
+  }
 }
 
 export async function createLabel(actor: Actor, input: CreateLabelData): Promise<ActionResult<LabelDTO>> {
   if (!canManageLabels(actor)) return forbidden();
-  return boardWrite(async (tx) => {
+  return labelWrite(async (tx) => {
     await assertNameFree(tx, input.name);
     const label = await tx.label.create({ data: { name: input.name, color: input.color }, select: labelSelect });
     return changed(toLabel(label));
@@ -42,7 +63,7 @@ export async function createLabel(actor: Actor, input: CreateLabelData): Promise
 /** Renaming to a different case of its own name ("kitchen" → "Kitchen") is allowed. */
 export async function updateLabel(actor: Actor, input: UpdateLabelData): Promise<ActionResult<LabelDTO>> {
   if (!canManageLabels(actor)) return forbidden();
-  return boardWrite(async (tx) => {
+  return labelWrite(async (tx) => {
     const label = await tx.label.findUnique({ where: { id: input.id }, select: labelSelect });
     if (!label) refuse("NOT_FOUND", LABEL_GONE);
     const rename = input.name !== undefined && input.name !== label.name;

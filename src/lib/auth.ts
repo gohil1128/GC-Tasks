@@ -6,12 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { authConfig } from "@/lib/auth.config";
 import { verifyPassword } from "@/modules/auth/password";
 import {
-  checkLoginAllowed,
   clearLoginFailures,
   clientIpFrom,
   LoginLockedError,
   loginKeys,
-  recordLoginFailure,
+  reserveLoginAttempt,
 } from "@/modules/auth/rate-limit";
 
 // A bcrypt hash of a value nobody can supply, compared against when the
@@ -21,6 +20,10 @@ const DUMMY_HASH = "$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZAgcfl7p92ldGxad68LJZdL17lhWy
 declare module "next-auth" {
   interface Session {
     user: { id: string } & DefaultSession["user"];
+    sessionVersion: number;
+  }
+  interface User {
+    sessionVersion?: number;
   }
 }
 
@@ -57,21 +60,19 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
         const ip = request ? clientIpFrom(new Headers(request.headers)) : null;
         const keys = loginKeys(email, ip);
 
-        const state = await checkLoginAllowed(keys);
+        const state = await reserveLoginAttempt(keys);
         if (state.locked) throw new LoginLockedError(state.retryAfterSec);
 
         const user = await prisma.user.findUnique({ where: { email } });
         const ok = await verifyPassword(parsed.data.password, user?.passwordHash ?? DUMMY_HASH);
 
         // A deactivated account fails exactly like a wrong password, and
-        // counts as one, so the form cannot be used to learn who was removed.
-        if (!user || !ok || !user.active) {
-          await recordLoginFailure(keys);
-          return null;
-        }
+        // stays counted as one, so the form cannot be used to learn who was
+        // removed.
+        if (!user || !ok || !user.active) return null;
 
         await clearLoginFailures(keys);
-        return { id: user.id, email: user.email, name: user.name };
+        return { id: user.id, email: user.email, name: user.name, sessionVersion: user.sessionVersion };
       },
     }),
   ],
@@ -82,6 +83,11 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   trusted out of the token. A JWT is only rewritten at sign-in, so without
   this an owner who deactivates someone would not take effect until that
   person signed out. cache() makes it one query per request.
+
+  The same goes for a password reset or change: the token's sessionVersion
+  has to match the account's, so a session issued before one — a lost phone,
+  or whoever had the old password — stops working, rather than coming back
+  the moment the person picks a new password.
 */
 export const currentUser = cache(async () => {
   const session = await auth();
@@ -97,10 +103,13 @@ export const currentUser = cache(async () => {
       role: true,
       active: true,
       mustChangePassword: true,
+      sessionVersion: true,
     },
   });
   if (!user || !user.active) return null;
-  return user;
+  const { sessionVersion, ...me } = user;
+  if (session.sessionVersion !== sessionVersion) return null;
+  return me;
 });
 
 export type CurrentUser = NonNullable<Awaited<ReturnType<typeof currentUser>>>;

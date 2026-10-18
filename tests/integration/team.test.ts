@@ -4,6 +4,9 @@ import { colorForSeed } from "@/lib/colors";
 import type { Actor, Role } from "@/lib/permissions";
 import { hashPassword, verifyPassword } from "@/modules/auth/password";
 import { ALREADY_SET_UP, createFirstOwner, hasAnyUser, STARTER_LABELS } from "@/modules/auth/setup";
+import { updateTask } from "@/modules/tasks/service";
+import { lockBoard } from "@/modules/tasks/revision";
+import { updateTaskSchema } from "@/modules/tasks/validation";
 import {
   addMember,
   listTeam,
@@ -66,6 +69,22 @@ async function revision() {
 
 async function activeOwners() {
   return prisma.user.count({ where: { role: "OWNER", active: true } });
+}
+
+async function sessionVersion(id: string) {
+  return (await prisma.user.findUniqueOrThrow({ where: { id }, select: { sessionVersion: true } })).sessionVersion;
+}
+
+/** Resolves once `count` statements are queued behind a lock somebody else holds. */
+async function lockWaiters(count: number) {
+  for (let i = 0; i < 200; i++) {
+    const [row] = await prisma.$queryRaw<{ n: number }[]>`
+      SELECT count(*)::int AS n FROM pg_stat_activity
+      WHERE datname = current_database() AND wait_event_type = 'Lock'`;
+    if ((row?.n ?? 0) >= count) return;
+    await new Promise((r) => setTimeout(r, 25));
+  }
+  throw new Error(`never saw ${count} statement(s) waiting on a lock`);
 }
 
 describe.skipIf(!enabled)("team service (integration)", () => {
@@ -157,6 +176,17 @@ describe.skipIf(!enabled)("team service (integration)", () => {
       expect(await prisma.user.count()).toBe(3);
     });
 
+    it("compares emails literally, so an underscore is not a wildcard", async () => {
+      const owner = await makeUser("OWNER");
+      await makeUser("STAFF", { email: "joxsmith@cafe.test" });
+      const r = await addMember(owner.actor, { name: "Jo", email: "jo_smith@cafe.test", role: "STAFF" });
+      expect(r.ok).toBe(true);
+      expect(await addMember(owner.actor, { name: "Jo", email: "JO_SMITH@cafe.test", role: "STAFF" })).toMatchObject({
+        ok: false,
+        code: "INVALID",
+      });
+    });
+
     it("lets only one of two simultaneous adds of the same email through", async () => {
       const owner = await makeUser("OWNER");
       const [a, b] = await Promise.all([
@@ -175,6 +205,7 @@ describe.skipIf(!enabled)("team service (integration)", () => {
         { name: "X", email: "not-an-email", role: "STAFF" },
         { name: "X", email: "x@example.com", role: "ADMIN" },
         { name: "X", email: "x@example.com" },
+        { name: "Sam\u0000", email: "x@example.com", role: "STAFF" },
       ];
       for (const input of cases) {
         expect(await addMember(owner.actor, input)).toMatchObject({ ok: false, code: "INVALID" });
@@ -274,6 +305,47 @@ describe.skipIf(!enabled)("team service (integration)", () => {
       expect(await prisma.comment.count({ where: { authorId: staff.id } })).toBe(1);
     });
 
+    it("records the removal on each card and moves its version, so an open edit is told rather than refused", async () => {
+      const owner = await makeUser("OWNER");
+      const editor = await makeUser("OWNER");
+      const dev = await makeUser("STAFF", { name: "Dev" });
+      const cara = await makeUser("STAFF", { name: "Cara" });
+      const theirs = await makeTask(editor.id, [dev.id]);
+      const untouched = await makeTask(editor.id, [cara.id]);
+
+      expect((await setMemberActive(owner.actor, dev.id, false)).ok).toBe(true);
+
+      const card = await prisma.task.findUniqueOrThrow({ where: { id: theirs.id } });
+      expect(card.version).toBe(theirs.version + 1);
+      expect(card.updatedById).toBe(owner.id);
+      const history = await prisma.activity.findMany({ where: { taskId: theirs.id } });
+      expect(history).toHaveLength(1);
+      expect(history[0]).toMatchObject({ type: "unassigned", actorId: owner.id, detail: { userIds: [dev.id] } });
+      expect((await prisma.task.findUniqueOrThrow({ where: { id: untouched.id } })).version).toBe(untouched.version);
+      expect(await prisma.activity.count({ where: { taskId: untouched.id } })).toBe(0);
+
+      // An owner who had the card open, still showing Dev, adds Cara.
+      const stale = await updateTask(
+        editor.actor,
+        updateTaskSchema.parse({ id: theirs.id, version: theirs.version, assigneeIds: [dev.id, cara.id] }),
+      );
+      expect(stale).toMatchObject({ ok: false, code: "CONFLICT" });
+    });
+
+    it("signs out every session they had, so reactivating them later does not revive an old cookie", async () => {
+      const owner = await makeUser("OWNER");
+      const staff = await makeUser("STAFF");
+      const before = await sessionVersion(staff.id);
+
+      expect((await setMemberActive(owner.actor, staff.id, false)).ok).toBe(true);
+      expect(await sessionVersion(staff.id)).toBe(before + 1);
+      // Already off: nothing changes.
+      expect((await setMemberActive(owner.actor, staff.id, false)).ok).toBe(true);
+      expect(await sessionVersion(staff.id)).toBe(before + 1);
+      expect((await setMemberActive(owner.actor, staff.id, true)).ok).toBe(true);
+      expect(await sessionVersion(staff.id)).toBe(before + 1);
+    });
+
     it("reactivates without restoring assignments", async () => {
       const owner = await makeUser("OWNER");
       const staff = await makeUser("STAFF");
@@ -311,6 +383,14 @@ describe.skipIf(!enabled)("team service (integration)", () => {
       expect(r.revision).toBe(before);
     });
 
+    it("signs out every session already open as them", async () => {
+      const owner = await makeUser("OWNER");
+      const staff = await makeUser("STAFF");
+      const before = await sessionVersion(staff.id);
+      expect((await resetMemberPassword(owner.actor, staff.id)).ok).toBe(true);
+      expect(await sessionVersion(staff.id)).toBe(before + 1);
+    });
+
     it("is not for your own account", async () => {
       const owner = await makeUser("OWNER");
       expect(await resetMemberPassword(owner.actor, owner.id)).toMatchObject({ ok: false, code: "INVALID" });
@@ -335,6 +415,54 @@ describe.skipIf(!enabled)("team service (integration)", () => {
       const before = await revision();
       const r = await updateProfile(owner.actor, { name: "Harsh", color: "plum" });
       expect(r.ok && r.revision).toBe(before + 1);
+    });
+
+    it("refuses a name with a NUL character instead of failing the write", async () => {
+      const owner = await makeUser("OWNER");
+      expect(await updateProfile(owner.actor, { name: "Har\u0000sh", color: "plum" })).toMatchObject({
+        ok: false,
+        code: "INVALID",
+      });
+    });
+
+    it("waits for the board before locking its own row, so it cannot deadlock with an owner's change to them", async () => {
+      const owner = await makeUser("OWNER");
+      const staff = await makeUser("STAFF");
+      await prisma.boardRevision.create({ data: { id: 1, revision: 0 } });
+
+      let release!: () => void;
+      const gate = new Promise<void>((r) => (release = r));
+      let held!: () => void;
+      const boardHeld = new Promise<void>((r) => (held = r));
+      const hold = prisma.$transaction(
+        async (tx) => {
+          await lockBoard(tx);
+          held();
+          await gate;
+        },
+        { timeout: 20_000 },
+      );
+      await boardHeld;
+
+      // The owner's reset queues on the board first, then the profile save.
+      const reset = resetMemberPassword(owner.actor, staff.id);
+      await lockWaiters(1);
+      const profile = updateProfile(staff.actor, { name: "Asha", color: "teal" });
+      await lockWaiters(2);
+
+      // Holding the staff row while queued behind the reset is what deadlocked.
+      let rowLocked = false;
+      try {
+        await prisma.$transaction((tx) => tx.$queryRaw`SELECT "id" FROM "User" WHERE "id" = ${staff.id} FOR UPDATE NOWAIT`);
+      } catch {
+        rowLocked = true;
+      }
+      release();
+      await hold;
+      const results = await Promise.allSettled([reset, profile]);
+
+      expect(rowLocked).toBe(false);
+      for (const r of results) expect(r).toMatchObject({ status: "fulfilled", value: { ok: true } });
     });
   });
 

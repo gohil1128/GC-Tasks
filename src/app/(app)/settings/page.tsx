@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { redirect } from "next/navigation";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import { currentUser } from "@/lib/auth";
 import { APP_SHORT_NAME } from "@/lib/brand";
+import { requirePageUser } from "@/lib/page-auth";
 import { canManageLabels } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { AppearancePicker } from "./_components/appearance-picker";
@@ -26,8 +25,7 @@ async function readLabels(): Promise<ManagedLabel[]> {
 }
 
 export default async function SettingsPage() {
-  const me = await currentUser();
-  if (!me) redirect("/login");
+  const me = await requirePageUser();
   const managesLabels = canManageLabels(me);
   const labels = managesLabels ? await readLabels() : [];
 

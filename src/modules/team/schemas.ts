@@ -20,11 +20,18 @@ export const memberIdSchema = z
   .min(1, "That teammate could not be found.")
   .max(64, "That teammate could not be found.");
 
+// Postgres text cannot hold a NUL, so one would get past every check here and
+// then fail the write itself. Emails need nothing extra: .email() never lets
+// one through.
 export const nameSchema = z
   .string({ message: "Enter a name." })
   .trim()
   .min(1, "Enter a name.")
-  .max(NAME_MAX, `Keep the name to ${NAME_MAX} characters or fewer.`);
+  .max(NAME_MAX, `Keep the name to ${NAME_MAX} characters or fewer.`)
+  .refine(
+    (s) => !s.includes("\u0000"),
+    "That name contains a hidden character that can't be saved. Retype it and try again.",
+  );
 
 export const emailSchema = z
   .string({ message: "Enter an email address." })

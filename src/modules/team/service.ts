@@ -41,6 +41,7 @@ const TEAM_LOCK_KEY = 7_340_021;
 const NOT_OWNER = "Only owners can manage the team.";
 const NOT_FOUND = "That teammate could not be found. They may have been removed — refresh and try again.";
 const EMAIL_TAKEN = "Someone on the team already uses that email address.";
+const CLASHED = "Someone else changed the team at the same moment. Try again.";
 
 /** An expected refusal, thrown inside a transaction so it rolls back, then returned. */
 class Refusal extends Error {
@@ -62,9 +63,27 @@ function isUniqueViolation(err: unknown): boolean {
   return err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2002";
 }
 
+/*
+  Postgres broke a lock cycle (40P01) or refused a serialization (P2034).
+  Prisma has no code of its own for a deadlock: it arrives as P2010 from a
+  raw statement such as the board lock and untyped from anything else, with
+  Postgres's code only in the message. Every write here takes its locks in
+  one order, so this should not happen; if it does, the other change won and
+  this one can simply be tried again. Returned as INVALID rather than
+  CONFLICT because runAction() leaves CONFLICT for the caller to show, and
+  nothing on the Team or Settings page does: the click would fail in silence.
+*/
+function isLockClash(err: unknown): boolean {
+  if (err instanceof Prisma.PrismaClientKnownRequestError && err.code === "P2034") return true;
+  const fromDatabase =
+    err instanceof Prisma.PrismaClientKnownRequestError || err instanceof Prisma.PrismaClientUnknownRequestError;
+  return fromDatabase && /40P01|deadlock detected/.test(err.message);
+}
+
 function settle<T>(err: unknown): ActionResult<T> {
   if (err instanceof Refusal) return fail(err.code, err.message);
   if (isUniqueViolation(err)) return fail("INVALID", EMAIL_TAKEN);
+  if (isLockClash(err)) return fail("INVALID", CLASHED);
   throw err;
 }
 
@@ -124,14 +143,36 @@ async function otherActiveOwners(tx: Tx, excludingId: string): Promise<number> {
 
 /**
   Emails are stored lowercased, but an address written in by hand (or by an
-  older script) might not be, so the duplicate check ignores case too.
+  older script) might not be, so the duplicate check ignores case too. It
+  compares lower() to lower() rather than using Prisma's insensitive mode,
+  which is ILIKE and reads an _ in the address as "any character".
 */
 async function emailInUse(tx: Tx, email: string): Promise<boolean> {
-  const row = await tx.user.findFirst({
-    where: { email: { equals: email, mode: "insensitive" } },
-    select: { id: true },
+  const rows = await tx.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "User" WHERE lower("email") = lower(${email}) LIMIT 1`;
+  return rows.length > 0;
+}
+
+/*
+  Coming off a card this way is a change to what it says, as much as an
+  owner unassigning them by hand: the version moves, so someone with the card
+  open is told and re-merges rather than having their save refused for
+  "assigning" a deactivated person they never picked, and its history says
+  who took them off. Under the board lock, so no write can add them back
+  between the read and the delete.
+*/
+async function unassignEverywhere(tx: Tx, actor: Actor, userId: string): Promise<void> {
+  const rows = await tx.taskAssignee.findMany({ where: { userId }, select: { taskId: true } });
+  if (rows.length === 0) return;
+  const taskIds = rows.map((r) => r.taskId);
+  await tx.taskAssignee.deleteMany({ where: { userId } });
+  await tx.task.updateMany({
+    where: { id: { in: taskIds } },
+    data: { version: { increment: 1 }, updatedById: actor.id },
   });
-  return row !== null;
+  await tx.activity.createMany({
+    data: taskIds.map((taskId) => ({ taskId, actorId: actor.id, type: "unassigned", detail: { userIds: [userId] } })),
+  });
 }
 
 // ── Owners only ───────────────────────────────────────────────────────────
@@ -170,9 +211,10 @@ export async function addMember(
 
 /*
   A fresh temporary password, and the account is sent back to the
-  change-password screen. That also shuts out any session already signed in
-  as them — a lost phone, say — because nothing past that screen loads until
-  someone types the new temporary password, which only the owner has.
+  change-password screen. Moving sessionVersion on signs out every session
+  already open as them — a lost phone, say — for good; the change-password
+  screen alone would hold one back only until the person chose a new
+  password, and then the old cookie would work again.
 */
 export async function resetMemberPassword(
   actor: Actor,
@@ -193,7 +235,10 @@ export async function resetMemberPassword(
       await lockTeam(tx);
       await assertStillOwner(tx, actor);
       const target = await findTarget(tx, parsed.data);
-      await tx.user.update({ where: { id: target.id }, data: { passwordHash, mustChangePassword: true } });
+      await tx.user.update({
+        where: { id: target.id },
+        data: { passwordHash, mustChangePassword: true, sessionVersion: { increment: 1 } },
+      });
       // Someone locked out by failed attempts is usually why the owner is
       // doing this, so the new password works straight away.
       await tx.loginAttempt.deleteMany({ where: { key: { in: loginKeys(target.email, null) } } });
@@ -208,7 +253,9 @@ export async function resetMemberPassword(
 /**
   Deactivating takes the person off every task they were assigned to (the
   board offers only active people) but keeps their name on everything they
-  wrote or did. Reactivating does not put the assignments back.
+  wrote or did, and signs out every session they had, so reactivating them
+  later does not bring an old cookie back. Reactivating does not put the
+  assignments back.
 */
 export async function setMemberActive(actor: Actor, id: unknown, active: unknown): Promise<ActionResult<Member>> {
   if (!canManageTeam(actor)) return fail("FORBIDDEN", "Only owners can deactivate or reactivate accounts.");
@@ -238,10 +285,10 @@ export async function setMemberActive(actor: Actor, id: unknown, active: unknown
       }
       const row = await tx.user.update({
         where: { id: target.id },
-        data: { active: makeActive },
+        data: makeActive ? { active: true } : { active: false, sessionVersion: { increment: 1 } },
         select: memberSelect,
       });
-      if (!makeActive) await tx.taskAssignee.deleteMany({ where: { userId: target.id } });
+      if (!makeActive) await unassignEverywhere(tx, actor, target.id);
       const revision = await bumpRevision(tx);
       return { ok: true as const, data: toMember(row), revision };
     });
@@ -297,6 +344,9 @@ export async function updateProfile(actor: Actor, input: unknown): Promise<Actio
 
   try {
     return await prisma.$transaction(async (tx) => {
+      // The board before this person's row, the order an owner's change to
+      // them takes the two in (lockTeam); the other way round, they deadlock.
+      await lockBoard(tx);
       const exists = await tx.user.findUnique({ where: { id: actor.id }, select: { active: true } });
       if (!exists || !exists.active) throw new Refusal("UNAUTHORIZED", "Your session has ended. Sign in again.");
       const row = await tx.user.update({

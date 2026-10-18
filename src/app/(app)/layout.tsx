@@ -1,5 +1,4 @@
-import { redirect } from "next/navigation";
-import { currentUser } from "@/lib/auth";
+import { requirePageUser } from "@/lib/page-auth";
 import { AppHeader } from "@/components/shell/app-header";
 
 export const dynamic = "force-dynamic";
@@ -16,9 +15,7 @@ export const dynamic = "force-dynamic";
   inside main.
 */
 export default async function AppLayout({ children }: { children: React.ReactNode }) {
-  const me = await currentUser();
-  if (!me) redirect("/login");
-  if (me.mustChangePassword) redirect("/change-password");
+  const me = await requirePageUser();
 
   return (
     <div className="flex h-dvh flex-col">

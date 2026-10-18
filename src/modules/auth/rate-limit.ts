@@ -1,3 +1,4 @@
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 /*
@@ -7,12 +8,16 @@ import { prisma } from "@/lib/prisma";
   memory. Two keys per attempt:
     email:<address>  — guessing at one account
     ip:<addr>        — spraying one password across many accounts
-  Failures older than the window are forgiven.
+  Failures are forgiven once a window has passed since the last one — or, if
+  it was locked, since the lock ended. Counting from the end of the lock is
+  what lets the failures after a lock run on to the long lock; counted from
+  the failure itself, a lock exactly as long as the window always outlasted
+  it, and every lock started the count again from one.
 */
 
 const WINDOW_MS = 15 * 60 * 1000;
-const EMAIL_MAX = 5;
-const IP_MAX = 20; // higher: a café's wifi is one address for everyone on it
+export const EMAIL_MAX = 5;
+export const IP_MAX = 20; // higher: a café's wifi is one address for everyone on it
 const LOCK_MS = 15 * 60 * 1000;
 const LONG_LOCK_MULTIPLE = 2;
 const LONG_LOCK_MS = 60 * 60 * 1000;
@@ -33,8 +38,10 @@ export function clientIpFrom(headers: Headers): string | null {
 }
 
 /**
- * Checked BEFORE the password, and identical whether or not the address
- * exists — otherwise the lockout itself would reveal which addresses are real.
+ * A look at the lock without touching it, so a form can say how long to
+ * wait. It decides nothing: between this read and the password check a
+ * parallel attempt can take the last slot, which is why the check is gated
+ * by reserveLoginAttempt instead.
  */
 export async function checkLoginAllowed(keys: string[]): Promise<RateLimitState> {
   if (keys.length === 0) return { locked: false };
@@ -47,30 +54,77 @@ export async function checkLoginAllowed(keys: string[]): Promise<RateLimitState>
     }
   }
   if (!until) return { locked: false };
-  return { locked: true, retryAfterSec: Math.ceil((until.getTime() - now.getTime()) / 1000) };
+  return { locked: true, retryAfterSec: retryAfter(until, now) };
 }
 
-export async function recordLoginFailure(keys: string[]): Promise<void> {
+function retryAfter(until: Date, now: Date): number {
+  return Math.max(1, Math.ceil((until.getTime() - now.getTime()) / 1000));
+}
+
+class Refused extends Error {
+  constructor(public retryAfterSec: number) {
+    super("LOGIN_LOCKED");
+  }
+}
+
+// The columns hold UTC without a zone and Prisma sends a Date with one, so
+// say which zone, or the comparison follows the connection's TimeZone setting.
+const utc = (d: Date) => Prisma.sql`(${d} AT TIME ZONE 'UTC')`;
+
+/**
+ * Takes one attempt from every key BEFORE the password is checked, and is
+ * the only thing that decides whether the check happens. Looking at the lock
+ * and writing the failure once the password had been checked would let a
+ * burst of parallel attempts all through before the first failure landed,
+ * and a read-then-write counter loses all but one of simultaneous failures.
+ * So each key is a single INSERT … ON CONFLICT DO UPDATE: parallel attempts
+ * queue on the row and each takes its own slot.
+ *
+ * The attempt is counted as a failure up front — with the lock, when it is
+ * the one that reaches the limit — and a correct password then clears it
+ * with clearLoginFailures. A key that is already locked is refused without
+ * being counted, and the whole reservation rolls back, so an attempt the IP
+ * lock refuses does not use up the account's slots, or the other way round.
+ *
+ * Identical whether or not the address exists — otherwise the lockout itself
+ * would reveal which addresses are real.
+ */
+export async function reserveLoginAttempt(keys: string[]): Promise<RateLimitState> {
+  if (keys.length === 0) return { locked: false };
   const now = new Date();
-  await Promise.all(
-    keys.map(async (key) => {
-      const max = key.startsWith("ip:") ? IP_MAX : EMAIL_MAX;
-      const existing = await prisma.loginAttempt.findUnique({ where: { key } });
-      const stale = existing ? now.getTime() - existing.updatedAt.getTime() > WINDOW_MS : false;
-      const failures = (stale || !existing ? 0 : existing.failures) + 1;
-      const lockedUntil =
-        failures >= max * LONG_LOCK_MULTIPLE
-          ? new Date(now.getTime() + LONG_LOCK_MS)
-          : failures >= max
-            ? new Date(now.getTime() + LOCK_MS)
-            : null;
-      await prisma.loginAttempt.upsert({
-        where: { key },
-        create: { key, failures, lockedUntil },
-        update: { failures, lockedUntil },
-      });
-    }),
-  );
+  try {
+    await prisma.$transaction(async (tx) => {
+      // Always in the same order, so two attempts never hold each other's rows.
+      for (const key of [...keys].sort()) {
+        const max = key.startsWith("ip:") ? IP_MAX : EMAIL_MAX;
+        const failures = Prisma.sql`CASE
+          WHEN COALESCE(a."lockedUntil", a."updatedAt") < ${utc(new Date(now.getTime() - WINDOW_MS))} THEN 1
+          ELSE a."failures" + 1
+        END`;
+        const taken = await tx.$queryRaw<{ key: string }[]>`
+          INSERT INTO "LoginAttempt" AS a ("key", "failures", "lockedUntil", "updatedAt")
+          VALUES (${key}, 1, NULL, ${utc(now)})
+          ON CONFLICT ("key") DO UPDATE SET
+            "failures" = ${failures},
+            "lockedUntil" = CASE
+              WHEN ${failures} >= ${max * LONG_LOCK_MULTIPLE} THEN ${utc(new Date(now.getTime() + LONG_LOCK_MS))}
+              WHEN ${failures} >= ${max} THEN ${utc(new Date(now.getTime() + LOCK_MS))}
+            END,
+            "updatedAt" = ${utc(now)}
+          WHERE a."lockedUntil" IS NULL OR a."lockedUntil" <= ${utc(now)}
+          RETURNING a."key"`;
+        if (taken.length === 0) {
+          // The conflicting row stays locked to this transaction, so this reads the lock that refused us.
+          const row = await tx.loginAttempt.findUnique({ where: { key }, select: { lockedUntil: true } });
+          throw new Refused(row?.lockedUntil ? retryAfter(row.lockedUntil, now) : 1);
+        }
+      }
+    });
+  } catch (err) {
+    if (err instanceof Refused) return { locked: true, retryAfterSec: err.retryAfterSec };
+    throw err;
+  }
+  return { locked: false };
 }
 
 /** A correct password clears the record for that address. */

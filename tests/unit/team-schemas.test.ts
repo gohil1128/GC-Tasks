@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
-import { addMemberSchema, emailSchema, firstIssue, profileSchema } from "@/modules/team/schemas";
+import { addMemberSchema, emailSchema, firstIssue, nameSchema, profileSchema } from "@/modules/team/schemas";
+
+const NAME_HAS_NUL = "That name contains a hidden character that can't be saved. Retype it and try again.";
 
 describe("team input schemas", () => {
   it("trims and lowercases emails so one address is one account", () => {
@@ -23,6 +25,15 @@ describe("team input schemas", () => {
     expect(addMemberSchema.safeParse({ name: "x".repeat(81), email: "m@example.com", role: "STAFF" }).success).toBe(
       false,
     );
+  });
+
+  it("refuses a name with a NUL character, which the database cannot store", () => {
+    for (const name of ["Sam\u0000", "\u0000", "Sa\u0000m Staff"]) {
+      const bad = nameSchema.safeParse(name);
+      expect(bad.success).toBe(false);
+      if (!bad.success) expect(firstIssue(bad.error)).toBe(NAME_HAS_NUL);
+    }
+    expect(profileSchema.safeParse({ name: "Sam\u0000", color: "teal" }).success).toBe(false);
   });
 
   it("accepts only the two roles", () => {

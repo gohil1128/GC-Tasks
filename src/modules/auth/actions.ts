@@ -10,7 +10,7 @@ import {
   clearLoginFailures,
   clientIpFrom,
   loginKeys,
-  recordLoginFailure,
+  reserveLoginAttempt,
 } from "@/modules/auth/rate-limit";
 import { safeNextPath } from "@/modules/auth/safe-next";
 import { createFirstOwner } from "@/modules/auth/setup";
@@ -65,7 +65,8 @@ export async function loginAction(_prev: AuthFormState, formData: FormData): Pro
   try {
     await signIn("credentials", { email, password, redirect: false });
   } catch (err) {
-    // authorize() throws LoginLockedError when this very attempt trips the limit.
+    // The lock may have come with this very attempt — authorize() counts it
+    // before checking the password — or from a parallel one since the check above.
     const after = await checkLoginAllowed(keys);
     if (after.locked) return { error: tooMany(after.retryAfterSec), values };
     if (err instanceof Error && /LOGIN_LOCKED/.test(err.message)) return { error: tooMany(null), values };
@@ -135,8 +136,11 @@ const changePasswordSchema = z
   this checks the session with currentUser() instead.
 
   The current password proves it is the account holder at the keyboard and not
-  a borrowed session, and a wrong guess counts toward the same lockout as a
-  wrong sign-in, or this form would be a way round it.
+  a borrowed session, and a guess counts toward the same lockout as a sign-in,
+  taken the same way before the check, or this form would be a way round it.
+
+  A new password signs out every session issued before it, this one included
+  (see currentUser), so this one is issued again straight away.
 */
 export async function changePasswordAction(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
   const me = await currentUser();
@@ -150,21 +154,30 @@ export async function changePasswordAction(_prev: AuthFormState, formData: FormD
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "Check the form." };
 
   const keys = loginKeys(me.email, clientIpFrom(await headers()));
-  const before = await checkLoginAllowed(keys);
-  if (before.locked) return { error: tooMany(before.retryAfterSec) };
+  const slot = await reserveLoginAttempt(keys);
+  if (slot.locked) return { error: tooMany(slot.retryAfterSec) };
 
   const row = await prisma.user.findUnique({ where: { id: me.id }, select: { passwordHash: true } });
   if (!row) redirect("/login");
 
   if (!(await verifyPassword(parsed.data.currentPassword, row.passwordHash))) {
-    await recordLoginFailure(keys);
     const after = await checkLoginAllowed(keys);
     if (after.locked) return { error: tooMany(after.retryAfterSec) };
     return { error: "That isn't your current password." };
   }
 
   const passwordHash = await hashPassword(parsed.data.newPassword);
-  await prisma.user.update({ where: { id: me.id }, data: { passwordHash, mustChangePassword: false } });
+  await prisma.user.update({
+    where: { id: me.id },
+    data: { passwordHash, mustChangePassword: false, sessionVersion: { increment: 1 } },
+  });
   await clearLoginFailures(keys);
+
+  try {
+    await signIn("credentials", { email: me.email, password: parsed.data.newPassword, redirect: false });
+  } catch {
+    // The new password is set either way; signing in with it is the way through.
+    redirect("/login");
+  }
   redirect("/");
 }
