@@ -46,6 +46,11 @@ model User {
   // an owner) and cleared when the person picks their own. Nothing past
   // the change-password screen loads while it is true.
   mustChangePassword Boolean @default(false)
+  // Copied into the session cookie at sign-in and compared on every request.
+  // Bumped when a password is reset or changed and when an account is
+  // deactivated, which signs out every session issued before — a lost phone
+  // stays locked out even after its owner picks a new password.
+  sessionVersion Int @default(0)
   // Deactivated rather than deleted, so their name stays on the tasks,
   // comments and history they left behind. A deactivated account cannot sign
   // in and is not offered as an assignee.
