@@ -213,6 +213,18 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
   const sync = useBoardSync({ initialRevision: initial.revision, onBoard: setBoard });
   const today = useToday();
 
+  // Arriving from a notification — a bell click or a phone push — names
+  // the task in the URL (/?task=<id>): open it, then take the parameter
+  // off the URL so a refresh does not reopen it.
+  React.useEffect(() => {
+    const id = new URLSearchParams(window.location.search).get("task");
+    if (!id) return;
+    window.history.replaceState(null, "", window.location.pathname);
+    if (initial.tasks.some((t) => t.id === id)) setOpenTaskId(id);
+    // Mount only: `initial` is the board exactly as the server sent it.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   const searchRef = React.useRef<HTMLInputElement>(null);
   const todoAddRef = React.useRef<HTMLInputElement>(null);
   const tempSeq = React.useRef(0);
