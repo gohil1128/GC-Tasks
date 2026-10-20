@@ -25,5 +25,10 @@ export default NextAuth(authConfig).auth((req) => {
 });
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico)$).*)"],
+  // sw.js and manifest.webmanifest stay public alongside the images: the
+  // browser fetches both outside any page's session (service-worker update
+  // checks, the install prompt), and a login redirect would break push.
+  matcher: [
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico)$).*)",
+  ],
 };
