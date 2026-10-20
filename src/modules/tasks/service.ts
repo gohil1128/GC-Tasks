@@ -24,6 +24,7 @@ import {
   toTaskCard,
 } from "@/modules/tasks/mappers";
 import { insertionIndex, placeInColumn, positionBetween, rebalancedPositions } from "@/modules/tasks/position";
+import { captureActivity } from "@/modules/notifications/context";
 import { readTaskDetail } from "@/modules/tasks/queries";
 import { boardWrite, changed, refuse, unchanged } from "@/modules/tasks/revision";
 import type {
@@ -111,6 +112,11 @@ async function log(
   await tx.activity.createMany({
     data: entries.map(([type, detail]) => ({ taskId, actorId, type, detail: detail ?? {} })),
   });
+  // A copy for the notifier, which boardWrite() releases only if this
+  // transaction commits (see modules/notifications/context.ts).
+  for (const [type, detail] of entries) {
+    captureActivity({ taskId, actorId, type, detail: (detail ?? {}) as Record<string, unknown> });
+  }
 }
 
 /**
@@ -447,7 +453,9 @@ export async function archiveDone(actor: Actor): Promise<ActionResult<{ count: n
     if (done.length === 0) return unchanged({ count: 0 });
     const ids = done.map((t) => t.id);
     await tx.task.updateMany({ where: { id: { in: ids } }, data: { archivedAt: new Date(), updatedById: actor.id } });
-    await tx.activity.createMany({ data: ids.map((taskId) => ({ taskId, actorId: actor.id, type: "archived" })) });
+    // Through log(), not a bare createMany, so the notifier sees these too
+    // (it collapses a bulk archive into one summary push).
+    for (const taskId of ids) await log(tx, taskId, actor.id, [["archived"]]);
     return changed({ count: ids.length });
   });
 }

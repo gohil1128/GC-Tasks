@@ -1,6 +1,8 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import type { Actor } from "@/lib/permissions";
+import { withActivityCapture } from "@/modules/notifications/context";
+import { schedulePush } from "@/modules/notifications/dispatch";
 import type { ActionResult, ErrorCode } from "@/modules/tasks/types";
 
 /*
@@ -155,16 +157,24 @@ export async function boardWrite<T>(
   ...args: [(tx: Tx) => Promise<Outcome<T>>] | [Actor, (tx: Tx, actor: Actor) => Promise<Outcome<T>>]
 ): Promise<ActionResult<T>> {
   try {
-    return await prisma.$transaction(
-      async (tx) => {
-        const before = await lockBoard(tx);
-        const out = args.length === 1 ? await args[0](tx) : await args[1](tx, await freshActor(tx, args[0]));
-        const revision = out.changed ? await bumpRevision(tx) : before;
-        return { ok: true as const, data: out.data, revision };
-      },
-      // Writes queue on the board lock, so allow for waiting behind a few.
-      { maxWait: 5_000, timeout: 15_000 },
+    // The capture store rides along inside the transaction: log() drops a
+    // copy of every activity it writes into it, and only a COMMITTED write
+    // gets its copies back here — so a rolled-back write never announces
+    // itself, and the push goes out after the commit, not inside it.
+    const { result, entries } = await withActivityCapture(() =>
+      prisma.$transaction(
+        async (tx) => {
+          const before = await lockBoard(tx);
+          const out = args.length === 1 ? await args[0](tx) : await args[1](tx, await freshActor(tx, args[0]));
+          const revision = out.changed ? await bumpRevision(tx) : before;
+          return { ok: true as const, data: out.data, revision };
+        },
+        // Writes queue on the board lock, so allow for waiting behind a few.
+        { maxWait: 5_000, timeout: 15_000 },
+      ),
     );
+    if (result.ok) schedulePush(entries);
+    return result;
   } catch (err) {
     const failure = asFailure(err);
     if (failure) return failure;
