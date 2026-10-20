@@ -12,14 +12,22 @@ import { QuickAdd } from "./quick-add";
 import { SortableTaskCard } from "./task-card";
 
 const COLUMN_PREFIX = "column:";
+const TAB_PREFIX = "tab:";
 
 export function columnDroppableId(status: Status): string {
   return `${COLUMN_PREFIX}${status}`;
 }
 
-/** The column a droppable id names, or null for a card's id. */
+/** The phone layout's tab for a column — also a drop target (see ColumnTabs). */
+export function tabDroppableId(status: Status): string {
+  return `${TAB_PREFIX}${status}`;
+}
+
+/** The column a droppable id names (its tray or its phone tab), or null for a card's id. */
 export function statusOfDroppable(id: string): Status | null {
-  return id.startsWith(COLUMN_PREFIX) ? (id.slice(COLUMN_PREFIX.length) as Status) : null;
+  if (id.startsWith(COLUMN_PREFIX)) return id.slice(COLUMN_PREFIX.length) as Status;
+  if (id.startsWith(TAB_PREFIX)) return id.slice(TAB_PREFIX.length) as Status;
+  return null;
 }
 
 export function columnElementId(status: Status): string {

@@ -581,6 +581,10 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
     }
     recentlyMovedColumn.current = true;
     updateDrag({ ...d, columns: moveToColumn(d.columns, activeId, to, anchor, after) });
+    // On a phone only one column is on screen: when the drag reaches another
+    // column (through its tab), show that column so the card can be placed
+    // exactly where it belongs. Harmless on desktop, where every column shows.
+    if (to !== mobileColumn) setMobileColumn(to);
   }
 
   function finishDrag() {
@@ -733,16 +737,6 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
 
         {!owner && <StaffNotice />}
 
-        <ColumnTabs
-          active={mobileColumn}
-          counts={{
-            TODO: visibleColumns.TODO.length,
-            IN_PROGRESS: visibleColumns.IN_PROGRESS.length,
-            DONE: visibleColumns.DONE.length,
-          }}
-          onChange={setMobileColumn}
-        />
-
         {noMatches && (
           <div
             role="status"
@@ -768,6 +762,17 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
           onDragCancel={finishDrag}
           accessibility={{ announcements, screenReaderInstructions: SCREEN_READER }}
         >
+          {/* Inside the DnD context so the phone's column tabs can be drop
+              targets; DndContext renders no wrapper, so the layout is unchanged. */}
+          <ColumnTabs
+            active={mobileColumn}
+            counts={{
+              TODO: visibleColumns.TODO.length,
+              IN_PROGRESS: visibleColumns.IN_PROGRESS.length,
+              DONE: visibleColumns.DONE.length,
+            }}
+            onChange={setMobileColumn}
+          />
           <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:grid md:grid-cols-3 md:grid-rows-[minmax(0,1fr)] md:pb-6">
             {STATUSES.map((status) => (
               <BoardColumn

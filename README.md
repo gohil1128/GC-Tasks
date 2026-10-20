@@ -25,7 +25,7 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
 
 ## Features
 
-- **Board.** The three columns, with drag and drop. On a phone, each column is a tab, and you move cards with the card's **⋯ → Move to** menu.
+- **Board.** The three columns, with drag and drop. On a phone, each column is a tab: press-and-hold a card, then drag it onto another column's tab — the board switches to that column so you can drop the card exactly where it belongs, or drop it straight onto the tab to send it to the end of that column. The card's **⋯ → Move to** menu works too.
 - **Who's working on it.** A task can have several assignees. If you drag an unassigned task into *In progress*, it's assigned to you. You can also use **I'll take this** to add yourself to a task.
 - **Cards.** Labels (Kitchen, Marketing, …), priority, due date (red when overdue, amber when due today), checklist progress and comment count.
 - **Task details.** Inline editing, assignees, labels (you can create new ones from here), priority, due date, a checklist, comments, and a history of who changed what.
