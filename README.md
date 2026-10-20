@@ -30,6 +30,7 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
 - **Cards.** Labels (Kitchen, Marketing, …), priority, due date (red when overdue, amber when due today), checklist progress and comment count.
 - **Task details.** Inline editing, assignees, labels (you can create new ones from here), priority, due date, a checklist, comments, and a history of who changed what.
 - **Two people at once.** Open boards check for changes every few seconds, so a card a teammate moves shows up without reloading. If two people edit the same task at the same time, the second person is told and shown the latest version. Nobody's edit is silently overwritten.
+- **Notifications.** A bell in the header shows what teammates have changed — new tasks, comments, assignments, moves, completions, and other edits — with an unread badge. After you allow notifications in the browser, the same changes can also arrive as device push notifications; tapping one opens the task. You are never notified about your own changes, and a bulk archive is sent as one summary. On iPhone, push requires opening the site after adding it to the Home Screen.
 - **Filters.** My tasks, by person, by label, by priority, and search. Press `n` for a new task and `/` to search.
 - **Archive.** Hide finished tasks from the board, and restore them later.
 - **Team.** Owners add teammates as Owner or Staff. The app creates a one-time password, and the new person chooses their own password the first time they sign in. Owners can also change someone's role, reset their password, or deactivate their account. A deactivated person's name stays on their old tasks and comments, but they can't sign in. The board always keeps at least one active owner.
@@ -41,6 +42,7 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
 3. Under **Environment Variables**, add these two:
    - `AUTH_SECRET`: any random string of 32 or more characters.
    - `AUTH_TRUST_HOST`: `true`
+   - For device push notifications, also add a VAPID pair: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` (a `mailto:` contact URI). The in-app bell works without them.
 4. Deploy. This first build fails because there is no database yet. That's expected. Next, open the project's **Storage** tab, choose **Create Database → Neon**, and connect it to the project. This sets `DATABASE_URL`. Then use **Deployments → ⋯ → Redeploy**. Each build applies the database migrations automatically.
 5. Open the site. The first visit goes to **/setup**, where you create the first account, which is an owner. That page only works while there are no accounts. After that, add everyone else from the **Team** page.
 
