@@ -57,6 +57,11 @@ model User {
   active    Boolean  @default(true)
   // Avatar tint, one of the keys in src/lib/colors.ts.
   color     String   @default("rust")
+  // The bell's read watermark: board activity by OTHER people created after
+  // this is "unread" for this person. Null = has never opened the bell; the
+  // notifications migration stamps existing accounts with its run time, so
+  // nobody's whole history lands as unread on day one.
+  notificationReadAt DateTime?
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -65,6 +70,26 @@ model User {
   assignments  TaskAssignee[]
   comments     Comment[]
   activity     Activity[]
+  pushSubscriptions PushSubscription[]
+}
+
+// One browser/phone that wants board changes pushed to it. A person can
+// have several (phone, laptop); a dead endpoint answers 404/410 and the row
+// is deleted by the sender. The keys are the subscription's own public
+// material — the private half never leaves the device.
+model PushSubscription {
+  id        String   @id @default(cuid())
+  userId    String
+  endpoint  String   @unique
+  p256dh    String
+  auth      String
+  userAgent String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 model Task {
@@ -185,6 +210,8 @@ model Activity {
   actor User @relation(fields: [actorId], references: [id])
 
   @@index([taskId, createdAt])
+  // The notification bell reads the newest activity across ALL tasks.
+  @@index([createdAt])
 }
 
 // A single row (id = 1) whose revision goes up by one on every write to the
