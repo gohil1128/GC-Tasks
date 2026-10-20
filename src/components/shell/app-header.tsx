@@ -3,6 +3,7 @@ import { APP_SHORT_NAME } from "@/lib/brand";
 import { canManageTeam } from "@/lib/permissions";
 import { BrandLogo } from "@/components/shell/brand-logo";
 import { NavLinks } from "@/components/shell/nav-links";
+import { NotificationBell } from "@/components/shell/notification-bell";
 import { UserMenu, type ShellUser } from "@/components/shell/user-menu";
 
 /*
@@ -23,7 +24,8 @@ export function AppHeader({ me }: { me: ShellUser }) {
           <span className="display hidden text-lg font-semibold leading-none sm:inline">{APP_SHORT_NAME}</span>
         </Link>
         <NavLinks canManageTeam={canManageTeam(me)} />
-        <div className="ml-auto shrink-0">
+        <div className="ml-auto flex shrink-0 items-center gap-1 sm:gap-2">
+          <NotificationBell />
           <UserMenu me={me} />
         </div>
       </div>
