@@ -16,6 +16,7 @@ export type NotificationItem = {
   actorId: string;
   actorName: string;
   actorColor: string;
+  actorAvatar: string | null;
   type: ActivityType;
   text: string;
   taskId: string;
@@ -56,7 +57,7 @@ export async function getNotificationFeed(userId: string): Promise<NotificationF
         detail: true,
         createdAt: true,
         taskId: true,
-        actor: { select: { name: true, color: true } },
+        actor: { select: { name: true, color: true, avatar: true } },
         task: { select: { title: true, archivedAt: true } },
       },
     }),
@@ -79,6 +80,7 @@ export async function getNotificationFeed(userId: string): Promise<NotificationF
       actorId: row.actorId,
       actorName: row.actor.name,
       actorColor: row.actor.color,
+      actorAvatar: row.actor.avatar,
       type: dto.type,
       text: notificationSentence(dto, nameOf),
       taskId: row.taskId,
