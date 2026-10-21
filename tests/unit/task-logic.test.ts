@@ -41,9 +41,9 @@ import {
 } from "@/components/task/task-logic";
 import type { ActivityDTO, ChecklistItemDTO, LabelDTO, Member, TaskCard, TaskDetail } from "@/modules/tasks/types";
 
-const OWNER: Member = { id: "u1", name: "Harsh", email: "h@example.com", color: "rust", role: "OWNER", active: true };
-const RIYA: Member = { id: "u2", name: "Riya", email: "r@example.com", color: "teal", role: "STAFF", active: true };
-const GONE: Member = { id: "u3", name: "Sam", email: "s@example.com", color: "plum", role: "STAFF", active: false };
+const OWNER: Member = { id: "u1", name: "Harsh", email: "h@example.com", color: "rust", avatar: "tiger", role: "OWNER", active: true };
+const RIYA: Member = { id: "u2", name: "Riya", email: "r@example.com", color: "teal", avatar: null, role: "STAFF", active: true };
+const GONE: Member = { id: "u3", name: "Sam", email: "s@example.com", color: "plum", avatar: null, role: "STAFF", active: false };
 const MEMBERS = [OWNER, RIYA, GONE];
 
 function card(overrides: Partial<TaskCard> = {}): TaskCard {
