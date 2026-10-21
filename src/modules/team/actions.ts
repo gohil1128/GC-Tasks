@@ -64,6 +64,6 @@ export async function setMemberRoleAction(id: string, role: Role): Promise<Actio
 }
 
 /** Your own name and avatar colour. Anyone, owner or staff. */
-export async function updateProfileAction(input: { name: string; color: string }): Promise<ActionResult<Member>> {
+export async function updateProfileAction(input: { name: string; color: string; avatar?: string }): Promise<ActionResult<Member>> {
   return asSignedIn((actor) => updateProfile(actor, input));
 }

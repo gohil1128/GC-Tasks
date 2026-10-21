@@ -92,6 +92,7 @@ const memberSelect = {
   name: true,
   email: true,
   color: true,
+  avatar: true,
   role: true,
   active: true,
 } satisfies Prisma.UserSelect;
@@ -99,7 +100,7 @@ const memberSelect = {
 type MemberRow = Prisma.UserGetPayload<{ select: typeof memberSelect }>;
 
 export function toMember(row: MemberRow): Member {
-  return { id: row.id, name: row.name, email: row.email, color: row.color, role: row.role, active: row.active };
+  return { id: row.id, name: row.name, email: row.email, color: row.color, avatar: row.avatar, role: row.role, active: row.active };
 }
 
 /*
@@ -337,7 +338,7 @@ export async function setMemberRole(actor: Actor, id: unknown, role: unknown): P
 
 // ── Anyone, about themselves ──────────────────────────────────────────────
 
-/** Your own name and avatar colour, which show on every card you are on. */
+/** Your own name, avatar colour and animal, which show on every card you are on. */
 export async function updateProfile(actor: Actor, input: unknown): Promise<ActionResult<Member>> {
   const parsed = profileSchema.safeParse(input);
   if (!parsed.success) return fail("INVALID", firstIssue(parsed.error));
@@ -351,7 +352,7 @@ export async function updateProfile(actor: Actor, input: unknown): Promise<Actio
       if (!exists || !exists.active) throw new Refusal("UNAUTHORIZED", "Your session has ended. Sign in again.");
       const row = await tx.user.update({
         where: { id: actor.id },
-        data: { name: parsed.data.name, color: parsed.data.color },
+        data: { name: parsed.data.name, color: parsed.data.color, ...(parsed.data.avatar ? { avatar: parsed.data.avatar } : {}) },
         select: memberSelect,
       });
       const revision = await bumpRevision(tx);
