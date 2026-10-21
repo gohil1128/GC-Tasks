@@ -61,7 +61,7 @@ export async function createFirstOwner(input: unknown): Promise<ActionResult<Mem
     }
     const row = await tx.user.create({
       data: { name, email, passwordHash, role: "OWNER", mustChangePassword: false, color: colorForSeed(email) },
-      select: { id: true, name: true, email: true, color: true, role: true, active: true },
+      select: { id: true, name: true, email: true, color: true, avatar: true, role: true, active: true },
     });
     // skipDuplicates: a database that once had people in it may still have labels.
     await tx.label.createMany({ data: STARTER_LABELS, skipDuplicates: true });
