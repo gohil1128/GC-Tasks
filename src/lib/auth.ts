@@ -100,6 +100,7 @@ export const currentUser = cache(async () => {
       email: true,
       name: true,
       color: true,
+      avatar: true,
       role: true,
       active: true,
       mustChangePassword: true,
