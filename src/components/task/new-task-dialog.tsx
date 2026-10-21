@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useSwipeBack } from "@/components/ui/swipe-back";
 import { Input } from "@/components/ui/input";
 import { runAction } from "@/lib/action-client";
 import type { ColorKey } from "@/lib/colors";
@@ -65,6 +66,9 @@ export function NewTaskDialog({
   const [pending, setPending] = React.useState(false);
   const titleRef = React.useRef<HTMLInputElement>(null);
   const allowed = canCreateTask(actor);
+  const swipeBack = useSwipeBack(() => {
+    if (!pending) onOpenChange(false);
+  });
 
   return (
     <Dialog
@@ -73,6 +77,8 @@ export function NewTaskDialog({
       onOpenChange={(next) => !pending && onOpenChange(next)}
     >
       <DialogContent
+        hideClose
+        {...swipeBack}
         className="sm:max-w-xl"
         onOpenAutoFocus={(event) => {
           if (!allowed) return;

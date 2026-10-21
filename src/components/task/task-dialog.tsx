@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { LinkifiedText } from "@/components/ui/linkified-text";
+import { useSwipeBack } from "@/components/ui/swipe-back";
 import { runAction } from "@/lib/action-client";
 import type { ColorKey } from "@/lib/colors";
 import { localToday, shortDay } from "@/lib/dates";
@@ -156,12 +157,15 @@ export function TaskDialog({
     [onOpenChange],
   );
   const close = React.useCallback(() => handleOpenChange(false), [handleOpenChange]);
+  const swipeBack = useSwipeBack(close);
 
   return (
     <Dialog open={taskId !== null} onOpenChange={handleOpenChange}>
       {shownId !== null && (
         <DialogContent
           ref={contentRef}
+          hideClose
+          {...swipeBack}
           aria-describedby={undefined}
           className="gap-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-2xl"
           // Focus the sheet itself, not the title field: landing in a text box
