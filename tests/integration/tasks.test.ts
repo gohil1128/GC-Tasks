@@ -563,7 +563,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       const board = await getBoard();
       expect(board.members.map((m) => m.name)).toEqual(["Ali", "Harsh", "Priya"]);
       expect(board.members[0]).toMatchObject({ role: "STAFF", active: false });
-      for (const m of board.members) expect(Object.keys(m).sort()).toEqual(["active", "color", "id", "name", "role"]);
+      for (const m of board.members) expect(Object.keys(m).sort()).toEqual(["active", "avatar", "color", "id", "name", "role"]);
     });
 
     it("sorts tasks by column then position", async () => {
