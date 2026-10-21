@@ -7,7 +7,7 @@ import { cn } from "@/lib/utils";
 import type { ActivityDTO, BoardMember } from "@/modules/tasks/types";
 import { activityLine } from "./task-logic";
 
-const UNKNOWN: BoardMember = { id: "", name: "Someone", color: "slate", role: "STAFF", active: false };
+const UNKNOWN: BoardMember = { id: "", name: "Someone", color: "slate", avatar: null, role: "STAFF", active: false };
 
 /**
   What has happened to the task, newest first, folded away by default: it is

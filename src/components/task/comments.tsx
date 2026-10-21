@@ -14,7 +14,7 @@ import { wasEdited } from "./task-logic";
 
 const COMMENT_MAX = 5_000;
 
-const UNKNOWN: BoardMember = { id: "", name: "Someone", color: "slate", role: "STAFF", active: false };
+const UNKNOWN: BoardMember = { id: "", name: "Someone", color: "slate", avatar: null, role: "STAFF", active: false };
 
 function CommentBox({
   value,
