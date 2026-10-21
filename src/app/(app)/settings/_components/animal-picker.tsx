@@ -1,13 +1,13 @@
 "use client";
 import { Check } from "lucide-react";
-import { ANIMAL_LABEL, CUTE_ANIMALS, FURIOUS_ANIMALS, type AnimalKey } from "@/lib/avatars";
+import { ANIMAL_LABEL, CUTE_ANIMALS, WILD_ANIMALS, type AnimalKey } from "@/lib/avatars";
 import { AnimalArt } from "@/components/ui/animal-art";
 import { cn } from "@/lib/utils";
 
 /**
   The chai club as a native radio group, the same pattern as the colour
   picker: arrow keys move, Space picks, a screen reader hears each animal's
-  name. Two crews — cute and cutely furious — under their own sub-headings,
+  name. Two crews — cute and wild — under their own sub-headings,
   each option the actual artwork on a soft disc so what you pick is exactly
   what the board shows (minus your colour behind it there).
 */
@@ -26,7 +26,7 @@ export function AnimalPicker({
       <legend className="mb-2 text-sm font-medium">Avatar animal</legend>
       <Crew name={name} legend="Cute crew" animals={CUTE_ANIMALS} value={value} onChange={onChange} />
       <div className="mt-3">
-        <Crew name={name} legend="Cutely furious crew" animals={FURIOUS_ANIMALS} value={value} onChange={onChange} />
+        <Crew name={name} legend="Wild crew" animals={WILD_ANIMALS} value={value} onChange={onChange} />
       </div>
       <p className="mt-2 text-xs text-muted-foreground">
         Your animal shows on every card, comment and notification with your colour behind it.
