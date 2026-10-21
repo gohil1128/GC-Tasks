@@ -417,6 +417,18 @@ describe.skipIf(!enabled)("team service (integration)", () => {
       expect(r.ok && r.revision).toBe(before + 1);
     });
 
+    it("saves a picked animal and refuses one outside the club", async () => {
+      const owner = await makeUser("OWNER");
+      const r = await updateProfile(owner.actor, { name: "Harsh", color: "plum", avatar: "tiger" });
+      expect(r.ok && r.data.avatar).toBe("tiger");
+      const stored = await prisma.user.findUnique({ where: { id: owner.id }, select: { avatar: true } });
+      expect(stored?.avatar).toBe("tiger");
+      expect(await updateProfile(owner.actor, { name: "Harsh", color: "plum", avatar: "dragon" })).toMatchObject({
+        ok: false,
+        code: "INVALID",
+      });
+    });
+
     it("refuses a name with a NUL character instead of failing the write", async () => {
       const owner = await makeUser("OWNER");
       expect(await updateProfile(owner.actor, { name: "Har\u0000sh", color: "plum" })).toMatchObject({
