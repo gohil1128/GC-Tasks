@@ -108,12 +108,13 @@ export const boardMemberSelect = {
   id: true,
   name: true,
   color: true,
+  avatar: true,
   role: true,
   active: true,
 } satisfies Prisma.UserSelect;
 
 export function toBoardMember(row: Prisma.UserGetPayload<{ select: typeof boardMemberSelect }>): BoardMember {
-  return { id: row.id, name: row.name, color: row.color, role: row.role, active: row.active };
+  return { id: row.id, name: row.name, color: row.color, avatar: row.avatar, role: row.role, active: row.active };
 }
 
 export const labelSelect = { id: true, name: true, color: true } satisfies Prisma.LabelSelect;
