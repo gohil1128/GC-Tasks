@@ -157,7 +157,7 @@ export function TaskDialog({
     [onOpenChange],
   );
   const close = React.useCallback(() => handleOpenChange(false), [handleOpenChange]);
-  const swipeBack = useSwipeBack(close);
+  useSwipeBack(contentRef, close);
 
   return (
     <Dialog open={taskId !== null} onOpenChange={handleOpenChange}>
@@ -165,9 +165,8 @@ export function TaskDialog({
         <DialogContent
           ref={contentRef}
           hideClose
-          {...swipeBack}
           aria-describedby={undefined}
-          className="gap-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-2xl"
+          className="touch-pan-y gap-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-2xl"
           // Focus the sheet itself, not the title field: landing in a text box
           // would put a phone's keyboard over the task you just opened.
           onOpenAutoFocus={(event) => {
