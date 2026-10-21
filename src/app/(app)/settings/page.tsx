@@ -34,7 +34,7 @@ export default async function SettingsPage() {
       <h1 className="display text-3xl font-semibold">Settings</h1>
 
       <SettingsSection id="profile" title="Profile" description="How you appear on cards, comments and the team list.">
-        <ProfileForm me={{ id: me.id, name: me.name, email: me.email, color: me.color, role: me.role }} />
+        <ProfileForm me={{ id: me.id, name: me.name, email: me.email, color: me.color, avatar: me.avatar, role: me.role }} />
       </SettingsSection>
 
       <SettingsSection id="password" title="Password" description={`You sign in as ${me.email}.`}>
