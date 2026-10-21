@@ -57,6 +57,10 @@ model User {
   active    Boolean  @default(true)
   // Avatar tint, one of the keys in src/lib/colors.ts.
   color     String   @default("rust")
+  // The animal they picked from the chai club in src/lib/avatars.ts, or null
+  // for "not picked yet" — the avatar then derives one from the account id,
+  // so nobody is ever faceless.
+  avatar    String?
   // The bell's read watermark: board activity by OTHER people created after
   // this is "unread" for this person. Null = has never opened the bell; the
   // notifications migration stamps existing accounts with its run time, so
