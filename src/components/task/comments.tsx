@@ -3,6 +3,7 @@ import * as React from "react";
 import { MessageSquare } from "lucide-react";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { Avatar } from "@/components/ui/avatar";
+import { LinkifiedText } from "@/components/ui/linkified-text";
 import { Button } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { timeAgo } from "@/lib/dates";
@@ -149,7 +150,7 @@ function CommentItem({
           </div>
         ) : (
           <>
-            <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed [overflow-wrap:anywhere]">{comment.body}</p>
+            <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed [overflow-wrap:anywhere]"><LinkifiedText text={comment.body} /></p>
             {(canEdit || canDelete) && (
               <div className="mt-1 flex gap-1">
                 {canEdit && (

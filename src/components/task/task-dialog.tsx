@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
+import { LinkifiedText } from "@/components/ui/linkified-text";
 import { runAction } from "@/lib/action-client";
 import type { ColorKey } from "@/lib/colors";
 import { localToday, shortDay } from "@/lib/dates";
@@ -797,7 +798,7 @@ function TaskDialogBody({
                   <p className="text-2xs font-semibold uppercase tracking-wide text-muted-foreground">
                     Your {FIELD_NAME[field]}
                   </p>
-                  <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere]">{text}</p>
+                  <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap [overflow-wrap:anywhere]"><LinkifiedText text={text} /></p>
                   <div className="mt-2 flex flex-wrap gap-2">
                     <Button type="button" size="sm" variant="outline" onClick={() => reapplyMine(field)} disabled={!canEdit}>
                       Use mine
@@ -972,7 +973,7 @@ function TaskDialogBody({
             )}
           />
         ) : card.description ? (
-          <p className="whitespace-pre-wrap text-sm leading-relaxed [overflow-wrap:anywhere]">{card.description}</p>
+          <p className="whitespace-pre-wrap text-sm leading-relaxed [overflow-wrap:anywhere]"><LinkifiedText text={card.description} /></p>
         ) : (
           <p className="text-sm text-muted-foreground">No description.</p>
         )}
