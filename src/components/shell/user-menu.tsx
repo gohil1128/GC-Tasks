@@ -21,7 +21,7 @@ import { signOutAction } from "@/modules/auth/actions";
 import { THEME_OPTIONS } from "@/components/shell/theme-options";
 import { useMounted } from "@/components/shell/use-mounted";
 
-export type ShellUser = { id: string; name: string; email: string; color: string; role: Role };
+export type ShellUser = { id: string; name: string; email: string; color: string; avatar: string | null; role: Role };
 
 const itemClass =
   "relative flex w-full cursor-pointer select-none items-center gap-2.5 rounded-xl px-3 py-2.5 text-left text-sm outline-none transition-colors focus:bg-accent focus:text-accent-foreground data-[highlighted]:bg-accent";

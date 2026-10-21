@@ -28,6 +28,7 @@ type FeedItem = {
   actorId: string;
   actorName: string;
   actorColor: string;
+  actorAvatar: string | null;
   text: string;
   taskId: string;
   taskTitle: string;
@@ -202,7 +203,7 @@ export function NotificationBell() {
                   >
                     <span aria-hidden className="pt-0.5">
                       <Avatar
-                        person={{ id: item.actorId, name: item.actorName, color: item.actorColor }}
+                        person={{ id: item.actorId, name: item.actorName, color: item.actorColor, avatar: item.actorAvatar }}
                         size="xs"
                       />
                     </span>
