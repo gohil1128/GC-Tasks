@@ -157,13 +157,20 @@ export function TaskDialog({
     [onOpenChange],
   );
   const close = React.useCallback(() => handleOpenChange(false), [handleOpenChange]);
-  useSwipeBack(contentRef, close);
+  const swipeRef = useSwipeBack(close);
+  const setContentRef = React.useCallback(
+    (node: HTMLDivElement | null) => {
+      contentRef.current = node;
+      swipeRef(node);
+    },
+    [swipeRef],
+  );
 
   return (
     <Dialog open={taskId !== null} onOpenChange={handleOpenChange}>
       {shownId !== null && (
         <DialogContent
-          ref={contentRef}
+          ref={setContentRef}
           hideClose
           aria-describedby={undefined}
           className="touch-pan-y gap-5 pb-[max(1.25rem,env(safe-area-inset-bottom))] sm:max-w-2xl"

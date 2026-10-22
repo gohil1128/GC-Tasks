@@ -22,12 +22,22 @@ export function isBackSwipe(dx: number, dy: number): boolean {
 
 const SLIDE_EASING = "cubic-bezier(0.32, 0.72, 0.35, 1)";
 
-export function useSwipeBack(ref: React.RefObject<HTMLElement | null>, onBack: () => void) {
+/**
+  Returns a callback ref for the sheet. A callback, not a ref object: the
+  sheet only exists while its dialog is open, so the listeners have to go on
+  whenever it mounts, not once when the page does.
+
+  `canGoBack` is asked when the finger lifts. If it says no (a save still in
+  flight), the sheet springs back instead of sliding off and staying there.
+*/
+export function useSwipeBack(onBack: () => void, canGoBack: () => boolean = () => true) {
   const onBackRef = React.useRef(onBack);
   onBackRef.current = onBack;
+  const canGoBackRef = React.useRef(canGoBack);
+  canGoBackRef.current = canGoBack;
+  const [el, setEl] = React.useState<HTMLElement | null>(null);
 
   React.useEffect(() => {
-    const el = ref.current;
     if (!el) return;
 
     let start: { x: number; y: number } | null = null;
@@ -80,12 +90,18 @@ export function useSwipeBack(ref: React.RefObject<HTMLElement | null>, onBack: (
       mode = "pending";
       if (!wasDrag) return;
 
-      if (isBackSwipe(dx, dy)) {
+      if (isBackSwipe(dx, dy) && canGoBackRef.current()) {
         // Complete the slide the finger started, then hand over to the
-        // dialog's own close once the sheet is (nearly) off screen.
+        // dialog's own close once the sheet is (nearly) off screen. Its
+        // close animation is switched off first: a CSS animation outranks
+        // the inline transform, so it would snap the sheet back to the
+        // middle of the screen just to fade it out there.
         el.style.transition = `transform 200ms ${SLIDE_EASING}`;
         el.style.transform = `translateX(${el.clientWidth + 48}px)`;
-        window.setTimeout(() => onBackRef.current(), 190);
+        window.setTimeout(() => {
+          el.style.animation = "none";
+          onBackRef.current();
+        }, 190);
       } else {
         el.style.transition = `transform 240ms ${SLIDE_EASING}`;
         el.style.transform = "translateX(0px)";
@@ -108,5 +124,7 @@ export function useSwipeBack(ref: React.RefObject<HTMLElement | null>, onBack: (
       el.removeEventListener("touchend", onTouchEnd);
       el.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [ref]);
+  }, [el]);
+
+  return setEl;
 }
