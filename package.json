@@ -4,7 +4,7 @@
   "private": true,
   "scripts": {
     "dev": "next dev -p 3200",
-    "build": "prisma migrate deploy && next build",
+    "build": "DATABASE_URL=\"${DATABASE_URL_UNPOOLED:-$DATABASE_URL}\" prisma migrate deploy && next build",
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",

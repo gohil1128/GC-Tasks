@@ -43,7 +43,7 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
    - `AUTH_SECRET`: any random string of 32 or more characters.
    - `AUTH_TRUST_HOST`: `true`
    - For device push notifications, also add a VAPID pair: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` (a `mailto:` contact URI). The in-app bell works without them.
-4. Deploy. This first build fails because there is no database yet. That's expected. Next, open the project's **Storage** tab, choose **Create Database → Neon**, and connect it to the project. This sets `DATABASE_URL`. Then use **Deployments → ⋯ → Redeploy**. Each build applies the database migrations automatically.
+4. Deploy. This first build fails because there is no database yet. That's expected. Next, open the project's **Storage** tab, choose **Create Database → Neon**, and connect it to the project. Leave the environment variable prefix empty. This sets `DATABASE_URL`, the pooled connection the app uses, and `DATABASE_URL_UNPOOLED`, the direct connection the build uses for migrations. (Migrations through the pooler leave a lock behind that can fail a later build; without `DATABASE_URL_UNPOOLED`, as locally and in CI, the build migrates over `DATABASE_URL`.) Then use **Deployments → ⋯ → Redeploy**. Each build applies the database migrations automatically.
 5. Open the site. The first visit goes to **/setup**, where you create the first account, which is an owner. That page only works while there are no accounts. After that, add everyone else from the **Team** page.
 
 ## Run it locally
