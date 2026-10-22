@@ -28,7 +28,7 @@ export function isBackSwipe(dx: number, dy: number): boolean {
 const SLIDE_EASING = "cubic-bezier(0.32, 0.72, 0.35, 1)";
 
 /** Attach the gesture to a sheet element; returns the detach function. */
-export function attachSwipeBack(el: HTMLElement, onBack: () => void): () => void {
+export function attachSwipeBack(el: HTMLElement, onBack: () => void, canGoBack: () => boolean = () => true): () => void {
   let start: { x: number; y: number } | null = null;
   let mode: "pending" | "drag" | "scroll" = "pending";
   let lastDx = 0;
@@ -79,12 +79,20 @@ export function attachSwipeBack(el: HTMLElement, onBack: () => void): () => void
     mode = "pending";
     if (!wasDrag) return;
 
-    if (isBackSwipe(dx, dy)) {
+    if (isBackSwipe(dx, dy) && canGoBack()) {
       // Complete the slide the finger started, then hand over to the
-      // dialog's own close once the sheet is (nearly) off screen.
+      // dialog's own close once the sheet is (nearly) off screen. The
+      // exit animation is switched off first: a CSS animation outranks
+      // the inline transform, so it would snap the sheet back to the
+      // middle of the screen just to fade it out there — the "goes back
+      // twice" bug. A refused close (canGoBack says no) falls into the
+      // spring-back below instead of stranding the sheet off screen.
       el.style.transition = `transform 200ms ${SLIDE_EASING}`;
       el.style.transform = `translateX(${el.clientWidth + 48}px)`;
-      window.setTimeout(onBack, 190);
+      window.setTimeout(() => {
+        el.style.animation = "none";
+        onBack();
+      }, 190);
     } else {
       el.style.transition = `transform 240ms ${SLIDE_EASING}`;
       el.style.transform = "translateX(0px)";
@@ -114,9 +122,11 @@ export function attachSwipeBack(el: HTMLElement, onBack: () => void): () => void
   the element's ref — `ref={swipeRef}` — so the gesture arms the moment
   the sheet mounts and disarms when it unmounts.
 */
-export function useSwipeBack(onBack: () => void) {
+export function useSwipeBack(onBack: () => void, canGoBack: () => boolean = () => true) {
   const onBackRef = React.useRef(onBack);
   onBackRef.current = onBack;
+  const canGoBackRef = React.useRef(canGoBack);
+  canGoBackRef.current = canGoBack;
   const detachRef = React.useRef<(() => void) | null>(null);
 
   React.useEffect(
@@ -129,6 +139,6 @@ export function useSwipeBack(onBack: () => void) {
 
   return React.useCallback((node: HTMLElement | null) => {
     detachRef.current?.();
-    detachRef.current = node ? attachSwipeBack(node, () => onBackRef.current()) : null;
+    detachRef.current = node ? attachSwipeBack(node, () => onBackRef.current(), () => canGoBackRef.current()) : null;
   }, []);
 }
