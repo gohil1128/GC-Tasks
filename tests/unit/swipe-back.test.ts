@@ -113,6 +113,35 @@ describe("attachSwipeBack", () => {
     expect(onBack).not.toHaveBeenCalled();
   });
 
+  it("switches the exit animation off before handing over the close", () => {
+    // Regression (Oct 22): the dialog's CSS exit animation outranks the
+    // inline slide transform, so without this the sheet snapped back to
+    // the middle to fade out — it looked like it went back twice.
+    const sheet = fakeSheet();
+    const onBack = vi.fn();
+    attachSwipeBack(sheet as unknown as HTMLElement, onBack);
+
+    sheet.fire("touchstart", touchEvent(10, 100));
+    sheet.fire("touchmove", touchEvent(140, 104));
+    sheet.fire("touchend", touchEvent(140, 104));
+    vi.advanceTimersByTime(190);
+    expect(sheet.style.animation).toBe("none");
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("springs back when the close is refused", () => {
+    const sheet = fakeSheet();
+    const onBack = vi.fn();
+    attachSwipeBack(sheet as unknown as HTMLElement, onBack, () => false);
+
+    sheet.fire("touchstart", touchEvent(10, 100));
+    sheet.fire("touchmove", touchEvent(140, 104));
+    sheet.fire("touchend", touchEvent(140, 104));
+    expect(sheet.style.transform).toBe("translateX(0px)");
+    vi.advanceTimersByTime(500);
+    expect(onBack).not.toHaveBeenCalled();
+  });
+
   it("detach removes every listener", () => {
     const sheet = fakeSheet();
     const detach = attachSwipeBack(sheet as unknown as HTMLElement, vi.fn());
