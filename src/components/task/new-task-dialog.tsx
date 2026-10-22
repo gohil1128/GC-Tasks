@@ -69,7 +69,13 @@ export function NewTaskDialog({
   const allowed = canCreateTask(actor);
   const pendingRef = React.useRef(pending);
   pendingRef.current = pending;
-  const attachSwipe = useSwipeBack(() => {
+  const attachSwipe = useSwipeBack(
+    () => {
+      if (!pendingRef.current) onOpenChange(false);
+    },
+    () => !pendingRef.current,
+  );
+  useBackToClose(open, () => {
     if (!pendingRef.current) onOpenChange(false);
   });
 
