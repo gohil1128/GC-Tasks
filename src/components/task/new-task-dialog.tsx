@@ -11,6 +11,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { useBackToClose } from "@/components/ui/back-to-close";
 import { useSwipeBack } from "@/components/ui/swipe-back";
 import { Input } from "@/components/ui/input";
 import { runAction } from "@/lib/action-client";
@@ -72,6 +73,9 @@ export function NewTaskDialog({
     () => onOpenChange(false),
     () => !pendingRef.current,
   );
+  useBackToClose(open, () => {
+    if (!pendingRef.current) onOpenChange(false);
+  });
 
   return (
     <Dialog

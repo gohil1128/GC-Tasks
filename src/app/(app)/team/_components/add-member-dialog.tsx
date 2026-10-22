@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { useBackToClose } from "@/components/ui/back-to-close";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -29,6 +30,8 @@ export function AddMemberDialog({
   onOpenChange: (open: boolean) => void;
   onAdded: (added: AddedMember) => void;
 }) {
+  useBackToClose(open, () => onOpenChange(false));
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>

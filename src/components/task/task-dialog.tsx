@@ -6,6 +6,7 @@ import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogTitle } from "@/components/ui/dialog";
 import { LinkifiedText } from "@/components/ui/linkified-text";
+import { useBackToClose } from "@/components/ui/back-to-close";
 import { useSwipeBack } from "@/components/ui/swipe-back";
 import { runAction } from "@/lib/action-client";
 import type { ColorKey } from "@/lib/colors";
@@ -158,6 +159,7 @@ export function TaskDialog({
   );
   const close = React.useCallback(() => handleOpenChange(false), [handleOpenChange]);
   const swipeRef = useSwipeBack(close);
+  useBackToClose(taskId !== null, close);
   const setContentRef = React.useCallback(
     (node: HTMLDivElement | null) => {
       contentRef.current = node;

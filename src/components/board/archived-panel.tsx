@@ -4,6 +4,7 @@ import { ArchiveRestore, Loader2, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { AvatarStack, type AvatarPerson } from "@/components/ui/avatar";
+import { useBackToClose } from "@/components/ui/back-to-close";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { runAction } from "@/lib/action-client";
@@ -101,6 +102,8 @@ export function ArchivedPanel({
     toast.success("Task deleted.");
     return true;
   }
+
+  useBackToClose(open, () => onOpenChange(false));
 
   return (
     <>
