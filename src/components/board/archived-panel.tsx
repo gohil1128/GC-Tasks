@@ -105,6 +105,7 @@ export function ArchivedPanel({
   }
 
   const attachSwipe = useSwipeBack(() => onOpenChange(false));
+  useBackToClose(open, () => onOpenChange(false));
 
   return (
     <>
