@@ -1,4 +1,5 @@
 "use server";
+import { CredentialsSignin } from "next-auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
@@ -70,7 +71,12 @@ export async function loginAction(_prev: AuthFormState, formData: FormData): Pro
     const after = await checkLoginAllowed(keys);
     if (after.locked) return { error: tooMany(after.retryAfterSec), values };
     if (err instanceof Error && /LOGIN_LOCKED/.test(err.message)) return { error: tooMany(null), values };
-    return { error: "That email and password don't match an account.", values };
+    if (err instanceof CredentialsSignin) return { error: "That email and password don't match an account.", values };
+    // Anything else is the server failing (the database unreachable, a
+    // query erroring), not a wrong password. Saying "don't match" here sent
+    // people with the right password round in circles.
+    console.error("Sign-in failed with a server error", err);
+    return { error: "Couldn't sign you in because of a problem on our side. Try again in a minute.", values };
   }
 
   /*
