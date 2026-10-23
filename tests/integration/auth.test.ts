@@ -19,6 +19,8 @@ const shell = vi.hoisted(() => {
       super(`NEXT_REDIRECT ${url}`);
     }
   }
+  /** Stands in for next-auth's: the action tells a refused sign-in from a server fault by it. */
+  class CredentialsSignin extends Error {}
   type Config = {
     providers: { authorize: (raw: unknown, request: Request) => Promise<unknown> }[];
     callbacks: {
@@ -31,6 +33,7 @@ const shell = vi.hoisted(() => {
     session: null as unknown,
     ip: "203.0.113.9",
     RedirectSignal,
+    CredentialsSignin,
     /** What a credentials sign-in leaves in the cookie, or null when refused. */
     async signInAs(email: string, password: string) {
       const request = new Request("http://localhost/api/auth/callback/credentials", {
@@ -49,6 +52,7 @@ const shell = vi.hoisted(() => {
 });
 
 vi.mock("next-auth", () => ({
+  CredentialsSignin: shell.CredentialsSignin,
   default: (config: typeof shell.config) => {
     shell.config = config;
     return {
@@ -56,7 +60,7 @@ vi.mock("next-auth", () => ({
       auth: async () => shell.session,
       signIn: async (_provider: string, creds: { email: string; password: string }) => {
         const session = await shell.signInAs(creds.email, creds.password);
-        if (!session) throw new Error("CredentialsSignin");
+        if (!session) throw new shell.CredentialsSignin();
         shell.session = session;
       },
       signOut: async () => {
@@ -332,6 +336,17 @@ describe.skipIf(!enabled)("auth (integration)", () => {
       expect(await tryIt()).toMatchObject({ error: "Too many attempts. Try again in 15 minutes." });
       expect(await tryIt()).toMatchObject({ error: "Too many attempts. Try again in 15 minutes." });
       expect(checks).toHaveBeenCalledTimes(EMAIL_MAX);
+    });
+
+    it("says a server fault is a server fault, not a wrong password", async () => {
+      const staff = await makeUser("STAFF");
+      checks.mockRejectedValueOnce(new Error("database unreachable"));
+      const quiet = vi.spyOn(console, "error").mockImplementation(() => {});
+      expect(await loginAction(null, form({ email: staff.email, password: PASSWORD }))).toMatchObject({
+        error: "Couldn't sign you in because of a problem on our side. Try again in a minute.",
+      });
+      expect(quiet).toHaveBeenCalled();
+      quiet.mockRestore();
     });
 
     it("rations wrong current passwords on Change password the same way, even in parallel", async () => {
