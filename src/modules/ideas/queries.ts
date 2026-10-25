@@ -46,7 +46,7 @@ function toPost(row: PostRow): IdeaPost {
     title: row.title,
     body: deleted ? "" : row.body,
     createdAt: row.createdAt.toISOString(),
-    editedAt: row.editedAt?.toISOString() ?? null,
+    editedAt: deleted ? null : (row.editedAt?.toISOString() ?? null),
     deleted,
     upvotes: row._count.votes,
     upvotedByMe: row.votes.length > 0,

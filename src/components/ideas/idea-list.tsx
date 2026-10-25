@@ -10,7 +10,7 @@ import { Byline, DELETED, VoteButton } from "./bits";
 /** Top / New, as links so the choice lives in the URL and survives a refresh. */
 export function SortToggle({ sort }: { sort: IdeaSort }) {
   return (
-    <nav aria-label="Sort ideas" className="inline-flex rounded-full bg-beige-deep/60 p-1">
+    <nav aria-label="Sort ideas" className="inline-flex w-fit rounded-full bg-beige-deep/60 p-1">
       {IDEA_SORTS.map((option) => {
         const active = option === sort;
         return (

@@ -20,6 +20,9 @@ This app is separate from God's Chai Operations. It has its own database, its ow
 | Archive, restore and delete tasks; delete anyone's comment | ✓ | — |
 | Manage labels | ✓ | — |
 | Add teammates, change roles, reset passwords, deactivate accounts | ✓ | — |
+| Ideas: share an idea, reply anywhere in a thread, upvote other people's posts (once each, not your own) | ✓ | ✓ |
+| Ideas: edit or delete their own ideas and replies | ✓ | ✓ |
+| Ideas: delete anyone's idea or reply | ✓ | — |
 
 These rules live in one place, `src/lib/permissions.ts`. The server enforces them on every change. The browser uses the same rules to hide buttons a staff member can't use.
 
@@ -33,6 +36,7 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
 - **Notifications.** A bell in the header shows what teammates have changed — new tasks, comments, assignments, moves, completions, and other edits — with an unread badge. After you allow notifications in the browser, the same changes can also arrive as device push notifications; tapping one opens the task. You are never notified about your own changes, and a bulk archive is sent as one summary. On iPhone, push requires opening the site after adding it to the Home Screen.
 - **Filters.** My tasks, by person, by label, by priority, and search. Press `n` for a new task and `/` to search.
 - **Archive.** Hide finished tasks from the board, and restore them later.
+- **Ideas.** A Reddit-style page next to the board for opinions and ideas. Anyone can share an idea (a title, plus optional detail), and the team replies in nested threads — to the idea or to any reply. Upvote the good ones: one upvote each, and not on your own posts. Sort the list by **Top** (most upvoted, then newest) or **New**. Replies are ordered by upvotes, then oldest first; tap a reply's arrow or its thread line to collapse it. Deleting something that has replies leaves it in place as *[deleted]*, so the conversation under it stays readable; anything with no replies is removed outright. Ideas are separate from the board: they don't touch tasks or send board notifications.
 - **Team.** Owners add teammates as Owner or Staff. The app creates a one-time password, and the new person chooses their own password the first time they sign in. Owners can also change someone's role, reset their password, or deactivate their account. A deactivated person's name stays on their old tasks and comments, but they can't sign in. The board always keeps at least one active owner.
 
 ## Deploy (Vercel + Neon)
@@ -78,5 +82,6 @@ The integration tests empty every table between tests. To protect real data, the
 
 - Next.js 15 (App Router) with React 19 and TypeScript, Prisma 5 with Postgres, Auth.js v5 (email and password, with lockout after repeated failed sign-ins), Tailwind, and dnd-kit for drag and drop.
 - `src/modules/tasks`: task logic. Every change to the board runs in a single database transaction that also increments a board revision counter. Open boards poll that counter, which is cheap, and fetch the board again only when it changes.
+- `src/modules/ideas`: the Ideas page. An idea and all its replies live in one table (each reply points at its parent and at the idea it sits under, so a whole thread is one query). Upvotes are counted, not stored, with one row per person per post. Ideas writes run in their own transactions with a lock per thread, never the board's lock, so a busy thread doesn't make open boards refetch.
 - Card order uses fractional positions. A dropped card takes the midpoint between its two neighbours, so other cards don't need to be renumbered.
 - Edits to a task's content are checked against the task's version number. Moving a card doesn't change the version, so dragging a card never cancels someone else's edit in progress.

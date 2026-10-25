@@ -2,7 +2,7 @@
 import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { ArrowLeft, ChevronDown, CornerDownRight, MessageSquare } from "lucide-react";
+import { ArrowLeft, ChevronDown, ChevronRight, CornerDownRight, MessageSquare } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
 import { Button } from "@/components/ui/button";
@@ -370,7 +370,7 @@ function ReplyItem({ node, depth, parentName }: { node: ReplyNode; depth: number
           title={toggleLabel}
           className="-ml-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-accent hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
         >
-          <ChevronDown className={cn("h-4 w-4 transition-transform", collapsed && "-rotate-90")} aria-hidden />
+          {collapsed ? <ChevronRight className="h-4 w-4" aria-hidden /> : <ChevronDown className="h-4 w-4" aria-hidden />}
         </button>
         <Byline author={node.author} meId={actor.id} createdAt={node.createdAt} editedAt={node.editedAt} now={now}>
           {parentName !== null && (

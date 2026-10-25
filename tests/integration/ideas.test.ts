@@ -211,13 +211,14 @@ describe.skipIf(!RUN)("ideas (integration)", () => {
     const middle = data(await reply(sam, idea.id, "Middle"));
     data(await reply(owner, middle.id, "Under the middle"));
     data(await vote(riya, middle.id));
+    data(await edit(sam, { id: middle.id, body: "Middle, edited" }));
 
     expect(data(await svc.deleteIdea(sam, middle.id))).toMatchObject({ removed: false });
     expect(data(await svc.deleteIdea(riya, idea.id))).toMatchObject({ removed: false, ideaGone: false });
 
     const t = await thread(owner, idea.id);
-    expect(t.idea).toMatchObject({ deleted: true, author: null, authorId: null, body: "", title: "Idea" });
-    expect(t.replies[0]).toMatchObject({ deleted: true, author: null, authorId: null, body: "" });
+    expect(t.idea).toMatchObject({ deleted: true, author: null, authorId: null, body: "", title: "Idea", editedAt: null });
+    expect(t.replies[0]).toMatchObject({ deleted: true, author: null, authorId: null, body: "", editedAt: null });
     expect(shape(t.replies)).toEqual([["[deleted]", ["Under the middle"]]]);
     expect(t.replyCount).toBe(1);
     // The words are gone from the database too, not merely hidden.
