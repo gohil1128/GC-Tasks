@@ -46,6 +46,16 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
 4. Deploy. This first build fails because there is no database yet. That's expected. Next, open the project's **Storage** tab, choose **Create Database → Neon**, and connect it to the project. Leave the environment variable prefix empty. This sets `DATABASE_URL`, the pooled connection the app uses, and `DATABASE_URL_UNPOOLED`, the direct connection the build uses for migrations. (Migrations through the pooler leave a lock behind that can fail a later build; without `DATABASE_URL_UNPOOLED`, as locally and in CI, the build migrates over `DATABASE_URL`.) Then use **Deployments → ⋯ → Redeploy**. Each build applies the database migrations automatically.
 5. Open the site. The first visit goes to **/setup**, where you create the first account, which is an owner. That page only works while there are no accounts. After that, add everyone else from the **Team** page.
 
+## Locked out?
+
+If nobody can sign in, so nobody can reset a password from the Team page, use the recovery key:
+
+1. In Vercel, open **Settings → Environment Variables** and add `RECOVERY_KEY`: a random string of 24 or more characters (for example the output of `openssl rand -hex 24`). Then redeploy.
+2. Open **/recover** on the board, enter the key, the account's email and a new password. You're signed in, and everything on the account stays as it was. Anyone signed in as that account elsewhere is signed out.
+3. Delete `RECOVERY_KEY` again and redeploy. Without it, /recover does not exist.
+
+This is not a master password: it only sets a new password on one account. Wrong keys count against the same lockout as sign-in (5 tries, from all addresses together), and every use is logged.
+
 ## Run it locally
 
 ```bash

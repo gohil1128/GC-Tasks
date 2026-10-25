@@ -13,6 +13,7 @@ import {
   loginKeys,
   reserveLoginAttempt,
 } from "@/modules/auth/rate-limit";
+import { recoverAccount } from "@/modules/auth/recovery";
 import { safeNextPath } from "@/modules/auth/safe-next";
 import { createFirstOwner } from "@/modules/auth/setup";
 
@@ -114,6 +115,35 @@ export async function setupAction(_prev: AuthFormState, formData: FormData): Pro
     });
   } catch {
     // The account exists either way; signing in by hand is the way through.
+    redirect("/login");
+  }
+  redirect("/");
+}
+
+// ── Recovery ──────────────────────────────────────────────────────────────
+
+/** /recover: a new password on one account, for whoever holds RECOVERY_KEY. */
+export async function recoverAction(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const values = { email: field(formData, "email") };
+  const result = await recoverAccount(
+    {
+      key: field(formData, "key"),
+      email: values.email,
+      password: field(formData, "password"),
+      confirmPassword: field(formData, "confirmPassword"),
+    },
+    clientIpFrom(await headers()),
+  );
+  if (!result.ok) {
+    if (result.code === "DISABLED") redirect("/login");
+    if (result.code === "LOCKED") return { error: tooMany(result.retryAfterSec ?? null), values };
+    return { error: result.error, values };
+  }
+
+  try {
+    await signIn("credentials", { email: result.email, password: field(formData, "password"), redirect: false });
+  } catch {
+    // The password is set either way; signing in by hand is the way through.
     redirect("/login");
   }
   redirect("/");
