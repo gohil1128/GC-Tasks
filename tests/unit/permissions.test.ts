@@ -12,7 +12,13 @@ import {
   canManageTeam,
   canMoveTask,
   canWorkChecklist,
+  canDeleteIdea,
+  canEditIdea,
+  canReplyToIdea,
+  canShareIdea,
+  canVoteIdea,
   type Actor,
+  type IdeaAccess,
   type TaskAccess,
 } from "@/lib/permissions";
 
@@ -95,5 +101,44 @@ describe("archived tasks", () => {
       expect(canComment(actor, archived)).toBe(false);
     }
     expect(canArchiveOrDelete(owner)).toBe(true);
+  });
+});
+
+describe("ideas", () => {
+  const post = (over: Partial<IdeaAccess> = {}): IdeaAccess => ({ authorId: "s1", deleted: false, ...over });
+
+  it("lets everyone share and reply", () => {
+    for (const actor of [owner, staff]) {
+      expect(canShareIdea(actor)).toBe(true);
+      expect(canReplyToIdea(actor, post({ authorId: "someone-else" }))).toBe(true);
+    }
+  });
+
+  it("lets only the author edit, owners included", () => {
+    expect(canEditIdea(staff, post())).toBe(true);
+    expect(canEditIdea(owner, post())).toBe(false);
+    expect(canEditIdea(staff, post({ authorId: "o1" }))).toBe(false);
+  });
+
+  it("lets the author or any owner delete", () => {
+    expect(canDeleteIdea(staff, post())).toBe(true);
+    expect(canDeleteIdea(owner, post())).toBe(true);
+    expect(canDeleteIdea(staff, post({ authorId: "o1" }))).toBe(false);
+  });
+
+  it("allows upvoting others' posts but not your own", () => {
+    expect(canVoteIdea(owner, post())).toBe(true);
+    expect(canVoteIdea(staff, post())).toBe(false);
+    expect(canVoteIdea(staff, post({ authorId: "o1" }))).toBe(true);
+  });
+
+  it("freezes a deleted post for everyone", () => {
+    const gone = post({ deleted: true, authorId: null });
+    for (const actor of [owner, staff]) {
+      expect(canReplyToIdea(actor, gone)).toBe(false);
+      expect(canEditIdea(actor, gone)).toBe(false);
+      expect(canDeleteIdea(actor, gone)).toBe(false);
+      expect(canVoteIdea(actor, gone)).toBe(false);
+    }
   });
 });

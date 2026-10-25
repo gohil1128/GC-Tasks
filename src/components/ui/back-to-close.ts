@@ -31,10 +31,16 @@ let pushed = false;
 /** We called history.back() ourselves; its popstate is not a user's Back. */
 let ownBack = false;
 let listening = false;
+/** Navigations waiting for our entry to come off the history (afterSheetsClose). */
+const waiting: Array<() => void> = [];
 
 function push() {
   window.history.pushState({ ...window.history.state, gcSheet: true }, "");
   pushed = true;
+}
+
+function settled(): boolean {
+  return open.length === 0 && !pushed && !ownBack;
 }
 
 function sync() {
@@ -45,7 +51,22 @@ function sync() {
     pushed = false;
     ownBack = true;
     window.history.back();
+  } else if (settled() && waiting.length > 0) {
+    // A task later, so the router has finished with the popstate first.
+    const go = waiting.splice(0);
+    setTimeout(() => go.forEach((run) => run()));
   }
+}
+
+/**
+  Runs `go` — a router.push, say — once every sheet has closed and our entry
+  is off the history. Navigating straight after closing a sheet does not
+  stick: the history.back() that takes the entry off lands a tick later and
+  undoes the push. Call it as the sheet is being closed.
+*/
+export function afterSheetsClose(go: () => void): void {
+  if (settled()) go();
+  else waiting.push(go);
 }
 
 function onPopState() {

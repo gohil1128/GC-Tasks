@@ -75,6 +75,8 @@ model User {
   comments     Comment[]
   activity     Activity[]
   pushSubscriptions PushSubscription[]
+  ideas        Idea[]
+  ideaVotes    IdeaVote[]
 }
 
 // One browser/phone that wants board changes pushed to it. A person can
@@ -235,4 +237,55 @@ model LoginAttempt {
   failures    Int       @default(0)
   lockedUntil DateTime?
   updatedAt   DateTime  @updatedAt
+}
+
+// The Ideas page: opinions and ideas, threaded like Reddit. Apart from the
+// board on purpose — nothing here touches a task, takes the board lock or
+// moves the board revision. See src/modules/ideas.
+//
+// One table for an idea and every reply under it. An idea (top level) has no
+// parent and no root, and carries the title. A reply has the post it answers
+// as its parent and the idea it belongs to as its root, so a whole thread is
+// one indexed read however deep it goes.
+model Idea {
+  id        String    @id @default(cuid())
+  // Null for an idea; the idea or reply this answers, for a reply.
+  parentId  String?
+  // Null for an idea; the idea a reply sits under.
+  rootId    String?
+  authorId  String
+  // Ideas only; replies leave it null.
+  title     String?
+  body      String    @default("")
+  createdAt DateTime  @default(now())
+  // When the author last changed the words. Null = never edited.
+  editedAt  DateTime?
+  // Set when a post that still has replies is deleted: the body is wiped and
+  // it reads "[deleted]", so the replies keep their place. A post with no
+  // replies is removed outright instead.
+  deletedAt DateTime?
+
+  parent  Idea?      @relation("IdeaReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Idea[]     @relation("IdeaReplies")
+  root    Idea?      @relation("IdeaThread", fields: [rootId], references: [id], onDelete: Cascade)
+  thread  Idea[]     @relation("IdeaThread")
+  author  User       @relation(fields: [authorId], references: [id])
+  votes   IdeaVote[]
+
+  @@index([parentId])
+  @@index([rootId])
+}
+
+// One upvote, by one person, on one idea or reply. The key makes a second
+// vote by the same person impossible rather than merely unlikely.
+model IdeaVote {
+  ideaId    String
+  userId    String
+  createdAt DateTime @default(now())
+
+  idea Idea @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([ideaId, userId])
+  @@index([userId])
 }
