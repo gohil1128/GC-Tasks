@@ -7,9 +7,10 @@ import { NotificationBell } from "@/components/shell/notification-bell";
 import { UserMenu, type ShellUser } from "@/components/shell/user-menu";
 
 /*
-  One slim row: logo, the three places there are to go, and the account menu.
-  It has to fit a 360px phone with the board below it, so the app name and
-  the nav icons only appear once there is room for them.
+  One slim row: logo, the places there are to go, and the account menu.
+  It has to fit a 360px phone with the board below it, so the app name only
+  appears once there is room for it, and the nav shrinks to icons with just
+  the current page named (see NavLinks).
 */
 export function AppHeader({ me }: { me: ShellUser }) {
   return (

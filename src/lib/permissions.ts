@@ -14,6 +14,11 @@
   They cannot create, retitle, re-prioritise, re-date, re-label, reassign,
   archive or delete tasks, and cannot touch labels or the team.
 
+  Ideas (the Reddit-style page beside the board) are everyone's: anyone may
+  share an idea, reply anywhere in a thread, and upvote other people's posts
+  once each. People edit and delete only their own posts; owners may delete
+  anyone's.
+
   These functions are pure and import nothing server-only, so the browser
   uses the same rules to decide which controls to show. That is a courtesy:
   every Server Action checks again on the server, because a hidden button
@@ -113,4 +118,39 @@ export function canManageLabels(actor: Actor): boolean {
 
 export function canManageTeam(actor: Actor): boolean {
   return isOwner(actor);
+}
+
+// ── Ideas ────────────────────────────────────────────────────────────────
+
+/**
+  The parts of an idea or reply a permission depends on. `deleted` is a post
+  left in its thread as "[deleted]" because it still has replies; nothing
+  more can be done to it.
+*/
+export type IdeaAccess = { authorId: string | null; deleted: boolean };
+
+/** Every signed-in, active account may share an idea. */
+export function canShareIdea(actor: Actor): boolean {
+  void actor;
+  return true;
+}
+
+export function canReplyToIdea(actor: Actor, post: IdeaAccess): boolean {
+  void actor;
+  return !post.deleted;
+}
+
+/** The author only — owners included, so nobody's words are put in their mouth. */
+export function canEditIdea(actor: Actor, post: IdeaAccess): boolean {
+  return !post.deleted && post.authorId === actor.id;
+}
+
+/** Your own, or anyone's if you are an owner — the same as task comments. */
+export function canDeleteIdea(actor: Actor, post: IdeaAccess): boolean {
+  return !post.deleted && (post.authorId === actor.id || isOwner(actor));
+}
+
+/** Upvotes only, one each, and never on your own post. */
+export function canVoteIdea(actor: Actor, post: IdeaAccess): boolean {
+  return !post.deleted && post.authorId !== null && post.authorId !== actor.id;
 }
