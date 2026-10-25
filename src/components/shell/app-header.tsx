@@ -11,10 +11,14 @@ import { UserMenu, type ShellUser } from "@/components/shell/user-menu";
   It has to fit a 360px phone with the board below it, so the app name only
   appears once there is room for it, and the nav shrinks to icons with just
   the current page named (see NavLinks).
+
+  Sticky, though the frame never scrolls it away: iPhone Safari blurs
+  whatever sits under the status bar unless a fixed or sticky bar is there,
+  in which case it takes that bar's colour instead.
 */
 export function AppHeader({ me }: { me: ShellUser }) {
   return (
-    <header className="shrink-0 border-b border-border bg-background pt-[env(safe-area-inset-top)]">
+    <header className="sticky top-0 z-40 shrink-0 border-b border-border bg-background pt-[env(safe-area-inset-top)]">
       <div className="flex h-14 items-center gap-2 px-3 sm:gap-4 sm:px-5">
         <Link
           href="/"

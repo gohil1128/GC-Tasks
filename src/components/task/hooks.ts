@@ -55,14 +55,18 @@ export function useNow(): number {
   );
 }
 
-/** A textarea that grows with what is typed instead of scrolling inside itself. */
-export function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: string): void {
+/**
+  A textarea that grows with what is typed instead of scrolling inside itself.
+  `mounted` is for a field that comes and goes: flip it as it appears, so it
+  is measured then and not only once its text changes.
+*/
+export function useAutoGrow(ref: React.RefObject<HTMLTextAreaElement | null>, value: string, mounted = true): void {
   React.useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
     el.style.height = "auto";
     el.style.height = `${el.scrollHeight}px`;
-  }, [ref, value]);
+  }, [ref, value, mounted]);
 }
 
 /** True for Cmd+Enter on a Mac and Ctrl+Enter elsewhere — "send" in a multi-line box. */

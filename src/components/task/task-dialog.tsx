@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { flushSync } from "react-dom";
 import { AlertTriangle, Archive, ArchiveRestore, Hand, LogOut, RefreshCw, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { ConfirmDialog } from "@/components/shell/confirm-dialog";
@@ -510,7 +511,13 @@ function TaskDialogBody({
   const descriptionOrigin = React.useRef("");
 
   useAutoGrow(titleRef, titleDraft ?? card?.title ?? "");
-  useAutoGrow(descriptionRef, descriptionDraft ?? card?.description ?? "");
+  /*
+    A description with text in it is shown as text, with its links live, and
+    turns into the editor when tapped anywhere but a link. An always-open
+    textarea showed links as plain characters nobody could follow.
+  */
+  const [editingDescription, setEditingDescription] = React.useState(false);
+  useAutoGrow(descriptionRef, descriptionDraft ?? card?.description ?? "", editingDescription);
 
   /*
     While a field is being edited its draft is drawn instead of the saved
@@ -955,7 +962,32 @@ function TaskDialogBody({
             {descriptionSaving ? "Saving…" : saved ? <span className="text-success">Saved</span> : null}
           </span>
         </div>
-        {canEdit ? (
+        {canEdit && !editingDescription && descriptionDraft === null && card.description ? (
+          <div
+            role="button"
+            tabIndex={0}
+            aria-label="Edit description"
+            onClick={(e) => {
+              if ((e.target as HTMLElement).closest("a")) return;
+              // Rendered and focused within the tap itself: a phone only
+              // opens its keyboard for a focus the tap caused.
+              flushSync(() => setEditingDescription(true));
+              descriptionRef.current?.focus();
+            }}
+            onKeyDown={(e) => {
+              if (e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+              e.preventDefault();
+              flushSync(() => setEditingDescription(true));
+              descriptionRef.current?.focus();
+            }}
+            className={cn(
+              "-mx-2 min-h-[5.5rem] cursor-text whitespace-pre-wrap rounded-xl border border-transparent px-2 py-1.5 text-sm leading-relaxed [overflow-wrap:anywhere]",
+              "transition-colors hover:bg-accent/50 focus-visible:border-ring focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30",
+            )}
+          >
+            <LinkifiedText text={card.description} />
+          </div>
+        ) : canEdit ? (
           <textarea
             id={ids.description}
             ref={descriptionRef}
@@ -977,7 +1009,10 @@ function TaskDialogBody({
                 e.currentTarget.blur();
               }
             }}
-            onBlur={commitDescription}
+            onBlur={() => {
+              commitDescription();
+              setEditingDescription(false);
+            }}
             className={cn(
               "-mx-2 block min-h-[5.5rem] w-[calc(100%+1rem)] resize-none overflow-hidden rounded-xl border border-transparent bg-transparent px-2 py-1.5",
               "text-sm leading-relaxed outline-none transition-colors placeholder:text-muted-foreground",

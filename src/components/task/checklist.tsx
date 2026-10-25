@@ -1,6 +1,7 @@
 "use client";
 import * as React from "react";
 import { Check, ListChecks, Plus, X } from "lucide-react";
+import { LinkifiedText } from "@/components/ui/linkified-text";
 import { cn } from "@/lib/utils";
 import type { ChecklistItemDTO } from "@/modules/tasks/types";
 import { isTempId } from "./task-logic";
@@ -79,7 +80,7 @@ function ItemRow({
           {item.done && <Check className="h-3 w-3" aria-hidden />}
         </span>
         <span className={cn("min-w-0 flex-1 [overflow-wrap:anywhere]", item.done && "text-muted-foreground line-through")}>
-          {item.text}
+          <LinkifiedText text={item.text} />
           <span className="sr-only">{item.done ? " (done)" : " (not done)"}</span>
         </span>
       </li>
@@ -125,19 +126,32 @@ function ItemRow({
           className="my-1 h-8 min-w-0 flex-1 rounded-lg border border-input bg-card px-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/50"
         />
       ) : (
-        <button
-          type="button"
-          onClick={start}
-          disabled={!live}
+        // A div rather than a button, so a pasted link inside can be a real
+        // link: tapping the link follows it, tapping anywhere else edits.
+        <div
+          role="button"
+          tabIndex={live ? 0 : -1}
+          aria-disabled={!live || undefined}
+          onClick={(e) => {
+            if (!live || (e.target as HTMLElement).closest("a")) return;
+            start();
+          }}
+          onKeyDown={(e) => {
+            if (!live || e.target !== e.currentTarget || (e.key !== "Enter" && e.key !== " ")) return;
+            e.preventDefault();
+            start();
+          }}
           className={cn(
-            "min-h-9 min-w-0 flex-1 rounded-lg px-1 py-2 text-left text-sm leading-snug outline-none [overflow-wrap:anywhere]",
-            "focus-visible:ring-2 focus-visible:ring-ring disabled:cursor-progress",
+            "min-h-9 min-w-0 flex-1 cursor-text rounded-lg px-1 py-2 text-left text-sm leading-snug outline-none [overflow-wrap:anywhere]",
+            "focus-visible:ring-2 focus-visible:ring-ring aria-disabled:cursor-progress",
             item.done && "text-muted-foreground line-through",
           )}
         >
-          <span id={textId}>{item.text}</span>
+          <span id={textId}>
+            <LinkifiedText text={item.text} />
+          </span>
           <span className="sr-only">{pending ? " (saving)" : " (edit)"}</span>
-        </button>
+        </div>
       )}
 
       {editing === null && (

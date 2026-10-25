@@ -198,3 +198,23 @@
     transition-duration: 0.01ms !important;
   }
 }
+
+/*
+  iPhone Safari zooms the whole page in when a text field under 16px gets
+  focus, and leaves it zoomed. Fields drawn at text-sm or text-xs are lifted
+  to 16px on iOS only (the -webkit-touch-callout test), so desktop keeps the
+  compact size and nothing on a phone jumps when you tap into it.
+*/
+@supports (-webkit-touch-callout: none) {
+  input.text-sm,
+  input.text-xs,
+  input.text-2xs,
+  textarea.text-sm,
+  textarea.text-xs,
+  textarea.text-2xs,
+  select.text-sm,
+  select.text-xs,
+  select.text-2xs {
+    font-size: 16px !important;
+  }
+}
