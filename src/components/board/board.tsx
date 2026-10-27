@@ -84,6 +84,7 @@ import { ColumnTabs } from "./column-tabs";
 import { StaffNotice } from "./staff-notice";
 import { DraggedCard } from "./task-card";
 import { useBoardSync } from "./use-board-sync";
+import { useColumnSwipe } from "./use-column-swipe";
 
 // ── Drag set-up ─────────────────────────────────────────────────────────────
 
@@ -231,6 +232,12 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
   // dragRef is the drag as the handlers last left it, which can be ahead of
   // the `drag` state React has rendered.
   const dragRef = React.useRef<DragState | null>(null);
+  // Phone: swipe sideways between columns; stands down while a card is being dragged.
+  const columnSwipeRef = useColumnSwipe({
+    current: mobileColumn,
+    onChange: setMobileColumn,
+    isDragging: () => dragRef.current !== null,
+  });
   const lastOverId = React.useRef<UniqueIdentifier | null>(null);
   const recentlyMovedColumn = React.useRef(false);
   const dropStatus = React.useRef<Status | null>(null);
@@ -790,7 +797,10 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
             }}
             onChange={setMobileColumn}
           />
-          <div className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:grid md:grid-cols-3 md:grid-rows-[minmax(0,1fr)] md:pb-6">
+          <div
+            ref={columnSwipeRef}
+            className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:grid md:grid-cols-3 md:grid-rows-[minmax(0,1fr)] md:pb-6"
+          >
             {STATUSES.map((status) => (
               <BoardColumn
                 key={status}

@@ -6,8 +6,8 @@ import { columnElementId, tabDroppableId } from "./board-column";
 
 /**
   The phone layout's column switcher: one column on screen at a time, picked
-  here rather than swiped to, so a sideways thumb movement on a card is never
-  mistaken for "next column". Hidden from md up, where all three columns fit.
+  here or by swiping sideways across the column (see ./use-column-swipe.ts).
+  Hidden from md up, where all three columns fit.
 
   Each tab is also a drop target: press-and-hold a card, drag it onto another
   column's tab, and the board switches to that column so the card can be
