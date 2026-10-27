@@ -1,5 +1,4 @@
 import * as React from "react";
-import { flushSync } from "react-dom";
 import { STATUSES, type Status } from "@/modules/tasks/types";
 
 /*
@@ -17,7 +16,9 @@ import { STATUSES, type Status } from "@/modules/tasks/types";
   resized or rotated.
 
   Letting go carries on from where the finger was, at the speed it had: a
-  flick settles quickly, a slow drag settles slowly.
+  flick settles quickly, a slow drag settles slowly. The new column is current
+  the moment the finger lifts, and a touch while the board is still sliding
+  catches it where it is, so quick swipes chain without waiting to land.
 
   It has to stay out of the way of everything else a thumb does here:
     - scrolling a column: the gesture arms only once the movement is clearly
@@ -201,7 +202,8 @@ export function useColumnSwipe({
       return;
     }
     if (pos.current === index) {
-      place(index, false);
+      // A swipe already on its way here (React heard about it on release): let it land.
+      if (animations.current.length === 0) place(index, false);
       return;
     }
     // Instant while a card is held: drag-and-drop re-measures on its own schedule.
@@ -238,6 +240,9 @@ export function useColumnSwipe({
       let stepPx = 1;
       let dragPos = 0;
       let samples: { t: number; x: number }[] = [];
+      /** This touch caught the board mid-slide. */
+      let caught = false;
+      const currentIndex = () => STATUSES.indexOf(latest.current.current);
 
       const now = (event: TouchEvent) => (event.timeStamp > 0 ? event.timeStamp : Date.now());
       const velocity = (): number => {
@@ -251,15 +256,23 @@ export function useColumnSwipe({
       const onTouchStart = (event: TouchEvent) => {
         start = null;
         const live = latest.current;
-        // A settle in progress finishes first; its last frames are too short to be worth catching.
-        if (animations.current.length > 0) return;
         if (!live.enabled || event.touches.length !== 1 || !isPhone()) return;
         if (live.isDragging() || startsInsideNoSwipe(event.target)) return;
         const touch = event.touches[0]!;
         if (touch.clientX < EDGE_PX || touch.clientX > window.innerWidth - EDGE_PX) return;
         const t = track();
         if (!t) return;
-        basePos = pos.current;
+        // Still sliding from the last swipe: catch it where it is, so swipes can follow each
+        // other without waiting for the board to land.
+        caught = animations.current.length > 0;
+        if (caught) {
+          basePos = visiblePos();
+          stopAnimations();
+          pos.current = basePos;
+          place(basePos, true, currentIndex());
+        } else {
+          basePos = pos.current;
+        }
         stepPx = t.offsetWidth + GAP_PX;
         dragPos = basePos;
         start = { x: touch.clientX, y: touch.clientY };
@@ -270,7 +283,7 @@ export function useColumnSwipe({
       const onTouchMove = (event: TouchEvent) => {
         if (!start) return;
         if (latest.current.isDragging() || !latest.current.enabled) {
-          if (mode === "swipe") settle(Math.round(pos.current), 0);
+          if (mode === "swipe" || caught) settle(currentIndex(), 0);
           start = null;
           return;
         }
@@ -300,7 +313,11 @@ export function useColumnSwipe({
         const vx = wasSwipe ? velocity() : 0;
         start = null;
         mode = "pending";
-        if (!wasSwipe) return;
+        if (!wasSwipe) {
+          // Caught mid-slide by a tap or a scroll: finish the slide to the column it was going to.
+          if (caught) settle(currentIndex(), carouselSettleMs(Math.abs(currentIndex() - basePos) * stepPx, 0));
+          return;
+        }
 
         const from = Math.round(basePos);
         const dx = (basePos - fingerPos) * stepPx; // finger travel in px; negative = leftwards
@@ -310,11 +327,12 @@ export function useColumnSwipe({
         // Pick up from where the finger let go: rewrite the transform to the same place, then animate on.
         pos.current = shown;
         const ms = carouselSettleMs(Math.abs(to - shown) * stepPx, vx);
-        settle(to, ms, () => {
-          // The animation is over and the styles are at `to`; now tell React, synchronously,
-          // so the new column is current before anything is painted again.
-          if (target) flushSync(() => latest.current.onChange(target));
-        });
+        settle(to, ms);
+        // React hears now, not when the slide lands, so the board is never "between" columns as
+        // far as the app is concerned and the next swipe can start straight away. The slide is a
+        // compositor animation, so the re-render does not interrupt it.
+        const toStatus = STATUSES[to];
+        if (toStatus && toStatus !== latest.current.current) latest.current.onChange(toStatus);
       };
 
       el.addEventListener("touchstart", onTouchStart, { passive: true });
@@ -329,6 +347,6 @@ export function useColumnSwipe({
         el.removeEventListener("touchcancel", onTouchEnd);
       };
     },
-    [place, settle],
+    [place, settle, stopAnimations, visiblePos],
   );
 }
