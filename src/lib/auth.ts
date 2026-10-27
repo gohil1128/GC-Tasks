@@ -12,6 +12,7 @@ import {
   loginKeys,
   reserveLoginAttempt,
 } from "@/modules/auth/rate-limit";
+import { userForTicket } from "@/modules/auth/signin-ticket";
 
 // A bcrypt hash of a value nobody can supply, compared against when the
 // address is unknown so a miss costs the same time as a wrong password.
@@ -73,6 +74,18 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
 
         await clearLoginFailures(keys);
         return { id: user.id, email: user.email, name: user.name, sessionVersion: user.sessionVersion };
+      },
+    }),
+    /*
+      Only for the end of self sign-up, where the person has just entered
+      their emailed code and has no password to hand. The ticket is minted
+      on the server by the sign-up action — see src/modules/auth/signin-ticket.ts.
+    */
+    Credentials({
+      id: "signup-ticket",
+      credentials: { ticket: {} },
+      async authorize(raw) {
+        return userForTicket((raw as { ticket?: unknown } | undefined)?.ticket);
       },
     }),
   ],

@@ -2,7 +2,8 @@
   Who may do what — the one place the line between owners and staff is drawn.
 
   Owners run the board: they create, edit, assign, archive and delete tasks,
-  manage labels, and manage the team.
+  manage labels, and manage the team (including whether people may sign
+  themselves up).
 
   Staff see the whole board, so they know what everyone is on, but they only
   WORK it. They can:
@@ -117,6 +118,15 @@ export function canManageLabels(actor: Actor): boolean {
 }
 
 export function canManageTeam(actor: Actor): boolean {
+  return isOwner(actor);
+}
+
+/**
+  Opening and closing self sign-up. Its own rule, though owners-only like
+  the rest of the team: an open sign-up lets anyone with the link join as
+  staff and see the whole board.
+*/
+export function canManageSignups(actor: Actor): boolean {
   return isOwner(actor);
 }
 

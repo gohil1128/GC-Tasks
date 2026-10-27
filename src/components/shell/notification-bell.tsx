@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
   switch for phone (Web Push) notifications.
 
   The feed comes from /api/notifications — the board's Activity rows read
-  across all tasks, minus your own changes. Opening the bell marks them
+  across all tasks, minus your own changes, plus (for owners) team events
+  such as somebody signing themselves up. Opening the bell marks them
   read on the server (a watermark on your account), so the badge is the
   same on every device. The feed is re-read every 30 seconds and whenever
   the tab comes back to the front; pushes cover the times the app is
@@ -24,14 +25,15 @@ import { cn } from "@/lib/utils";
 */
 
 type FeedItem = {
+  kind: "task" | "team";
   id: string;
   actorId: string;
   actorName: string;
   actorColor: string;
   actorAvatar: string | null;
   text: string;
-  taskId: string;
-  taskTitle: string;
+  taskId: string | null;
+  taskTitle: string | null;
   taskArchived: boolean;
   createdAt: string;
   unread: boolean;
@@ -197,7 +199,9 @@ export function NotificationBell() {
                   <button
                     type="button"
                     onClick={() => {
-                      window.location.href = item.taskArchived ? "/" : `/?task=${item.taskId}`;
+                      // A team event has no task; the Team page is where an owner acts on it.
+                      window.location.href =
+                        item.kind === "team" ? "/team" : item.taskArchived ? "/" : `/?task=${item.taskId}`;
                     }}
                     className="flex w-full items-start gap-2.5 px-3.5 py-2 text-left transition-colors hover:bg-accent focus-visible:bg-accent focus-visible:outline-none"
                   >
@@ -218,7 +222,7 @@ export function NotificationBell() {
                         )}
                       </span>
                       <span className="mt-0.5 block truncate text-xs text-muted-foreground">
-                        {item.taskTitle} · {timeAgo(item.createdAt)}
+                        {item.taskTitle ?? "Team"} · {timeAgo(item.createdAt)}
                       </span>
                     </span>
                   </button>

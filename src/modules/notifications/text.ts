@@ -82,3 +82,20 @@ export function pendingToDTO(entry: PendingActivity, createdAt: Date): ActivityD
     createdAt: createdAt.toISOString(),
   };
 }
+
+// ── Team events ──────────────────────────────────────────────────────────
+
+/*
+  What happened to the team rather than to a task (TeamEvent rows), which
+  only owners are told about. One type so far: somebody signed themselves
+  up, and sign-up always makes a Staff account.
+*/
+export type TeamEventType = "joined";
+
+const TEAM_EVENT_SENTENCE: Record<TeamEventType, string> = {
+  joined: "joined the board as Staff",
+};
+
+export function teamEventSentence(type: string): string {
+  return TEAM_EVENT_SENTENCE[type as TeamEventType] ?? "changed the team";
+}

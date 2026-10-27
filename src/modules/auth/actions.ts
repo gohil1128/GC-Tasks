@@ -18,10 +18,12 @@ import { requestPasswordReset, resetPasswordWithCode } from "@/modules/auth/pass
 import { recoverAccount } from "@/modules/auth/recovery";
 import { safeNextPath } from "@/modules/auth/safe-next";
 import { createFirstOwner } from "@/modules/auth/setup";
+import { issueSigninTicket } from "@/modules/auth/signin-ticket";
+import { completeSignup, requestSignup } from "@/modules/auth/signup";
 
 /*
-  The signed-out side of the app: sign in, first-run setup, choosing your own
-  password, and signing out.
+  The signed-out side of the app: sign in, first-run setup, self sign-up,
+  choosing your own password, and signing out.
 
   These back plain <form action> forms, so failures come back as { error }
   rather than being thrown: Next.js strips the message off a thrown Error in a
@@ -193,6 +195,55 @@ export async function resetWithCodeAction(_prev: AuthFormState, formData: FormDa
     await signIn("credentials", { email: result.email, password: field(formData, "password"), redirect: false });
   } catch {
     // The password is set either way; signing in by hand is the way through.
+    redirect("/login");
+  }
+  redirect("/");
+}
+
+// ── Sign up (emailed code) ────────────────────────────────────────────────
+
+/*
+  /signup: always on to the code page with the same message, whether or
+  not the address already has an account (that one gets a note by email
+  instead of a code). The email goes out after the response (after()).
+*/
+export async function requestSignupAction(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const values = { name: field(formData, "name"), email: field(formData, "email") };
+  const result = await requestSignup(
+    { ...values, password: field(formData, "password"), confirmPassword: field(formData, "confirmPassword") },
+    clientIpFrom(await headers()),
+    { defer: (work) => afterResponse(work) },
+  );
+  if (!result.ok) {
+    if (result.code === "DISABLED") redirect("/login");
+    if (result.code === "LOCKED") return { error: tooMany(result.retryAfterSec ?? null), values };
+    return { error: result.error, values };
+  }
+  redirect(`/signup/verify?email=${encodeURIComponent(result.email)}&sent=1`);
+}
+
+/*
+  /signup/verify: the code makes the account, then the person is signed
+  straight in. There is no password in this form — the one they chose went
+  into the pending sign-up as a hash — so a short-lived ticket, minted
+  here and never sent to the browser, signs them in instead.
+*/
+export async function completeSignupAction(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const values = { email: field(formData, "email") };
+  const result = await completeSignup(
+    { email: values.email, code: field(formData, "code") },
+    clientIpFrom(await headers()),
+  );
+  if (!result.ok) {
+    if (result.code === "DISABLED") redirect("/login");
+    if (result.code === "LOCKED") return { error: tooMany(result.retryAfterSec ?? null), values };
+    return { error: result.error, values };
+  }
+
+  try {
+    await signIn("signup-ticket", { ticket: issueSigninTicket(result.user), redirect: false });
+  } catch {
+    // The account exists either way; signing in by hand is the way through.
     redirect("/login");
   }
   redirect("/");

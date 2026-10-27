@@ -3,6 +3,7 @@ import {
   notificationSentence,
   notificationText,
   pickPushEntry,
+  teamEventSentence,
 } from "@/modules/notifications/text";
 import type { PendingActivity } from "@/modules/notifications/context";
 import type { ActivityDTO, ActivityType } from "@/modules/tasks/types";
@@ -67,5 +68,15 @@ describe("pickPushEntry", () => {
   it("creation outranks everything else in its write", () => {
     const picked = pickPushEntry([pending("moved", { to: "DONE" }), pending("created")]);
     expect(picked.type).toBe("created");
+  });
+});
+
+describe("teamEventSentence", () => {
+  it("says a self sign-up joined as Staff", () => {
+    expect(teamEventSentence("joined")).toBe("joined the board as Staff");
+  });
+
+  it("still reads for a type this build does not know", () => {
+    expect(teamEventSentence("something-new")).toBe("changed the team");
   });
 });

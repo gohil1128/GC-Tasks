@@ -1,7 +1,17 @@
-import { createHmac, randomInt, timingSafeEqual } from "node:crypto";
 import { z } from "zod";
 import { prisma } from "@/lib/prisma";
 import { APP_NAME, APP_SHORT_NAME } from "@/lib/brand";
+import {
+  CODE_MAX_ATTEMPTS,
+  CODE_TTL_MS,
+  codeSchema,
+  escapeHtml,
+  hashCode as hmacCode,
+  newCode,
+  tryCode,
+  WRONG_CODE_MESSAGE,
+  type Defer,
+} from "@/modules/auth/email-code";
 import { hashPassword, passwordSchema } from "@/modules/auth/password";
 import { clearLoginFailures, loginKeys, reserveLoginAttempt } from "@/modules/auth/rate-limit";
 import { emailConfigured, sendEmail } from "@/modules/email/send";
@@ -17,23 +27,19 @@ import { emailSchema, firstIssue } from "@/modules/team/schemas";
   Next's after() as `defer`), so neither the reply nor its timing says
   whether an account exists.
 
-  Only an HMAC of the code is stored, keyed by AUTH_SECRET and bound to the
-  account, so a copy of the table is no use without the secret. A code
-  lives ten minutes, survives five wrong tries, works once, and asking for
-  a new one kills the old.
+  Only an HMAC of the code is stored, bound to the account (see
+  ./email-code.ts, shared with sign-up). A code lives ten minutes, survives
+  five wrong tries, works once, and asking for a new one kills the old.
 
   Both steps also go through the sign-in limiter, with keys of their own.
   The limiter gives `ip:` keys the roomier IP limit, so the per-address keys
   start with "ip:" and everything else gets the per-account limit.
 */
 
-export const CODE_TTL_MS = 10 * 60 * 1000;
-export const CODE_MAX_ATTEMPTS = 5;
-const CODE_DIGITS = 6;
+export { CODE_MAX_ATTEMPTS, CODE_TTL_MS, WRONG_CODE_MESSAGE };
 
 export const GENERIC_SENT_MESSAGE =
   "If that email has an account, we've sent a 6-digit code to it. It works for 10 minutes.";
-export const WRONG_CODE_MESSAGE = "That code isn't right or has expired.";
 
 export const resetKeys = {
   request: (email: string, ip: string | null) => [
@@ -50,19 +56,9 @@ export function passwordResetEnabled(): boolean {
   return emailConfigured();
 }
 
-function secret(): string {
-  const value = process.env.AUTH_SECRET;
-  if (!value) throw new Error("AUTH_SECRET is not set");
-  return value;
-}
-
 /** Bound to the account, so a code row copied onto another user is useless. */
 function hashCode(code: string, userId: string): Buffer {
-  return createHmac("sha256", secret()).update(`password-reset:${userId}:${code}`).digest();
-}
-
-function newCode(): string {
-  return randomInt(0, 10 ** CODE_DIGITS).toString().padStart(CODE_DIGITS, "0");
+  return hmacCode("password-reset", userId, code);
 }
 
 // ── Step 1: ask for a code ────────────────────────────────────────────────
@@ -72,8 +68,6 @@ const requestSchema = z.object({ email: emailSchema });
 export type RequestResetResult =
   | { ok: true; email: string }
   | { ok: false; code: "DISABLED" | "INVALID" | "LOCKED"; error: string; retryAfterSec?: number };
-
-type Defer = (work: () => Promise<void>) => void;
 
 export async function requestPasswordReset(
   input: unknown,
@@ -125,10 +119,6 @@ async function issueAndSend(userId: string, email: string): Promise<void> {
   }
 }
 
-function escapeHtml(s: string): string {
-  return s.replace(/[&<>"']/g, (c) => `&#${c.charCodeAt(0)};`);
-}
-
 export function resetEmail(to: string, code: string) {
   const minutes = CODE_TTL_MS / 60_000;
   const text = [
@@ -157,10 +147,7 @@ export function resetEmail(to: string, code: string) {
 const verifySchema = z
   .object({
     email: emailSchema,
-    code: z
-      .string()
-      .transform((s) => s.replace(/\s+/g, ""))
-      .pipe(z.string().regex(/^\d{6}$/, "Enter the 6-digit code from the email.")),
+    code: codeSchema,
     password: passwordSchema,
     confirmPassword: z.string(),
   })
@@ -203,18 +190,18 @@ export async function resetPasswordWithCode(input: unknown, ip: string | null): 
     return wrong;
   }
 
-  // Take the try before comparing, in one conditional write, so parallel
-  // guesses cannot all slip in under the limit — the same idea as
-  // reserveLoginAttempt. A spent, expired or used code takes nothing.
+  // The try is taken before the comparison; see tryCode.
   const now = new Date();
-  const taken = await prisma.passwordResetCode.updateMany({
-    where: { id: row.id, usedAt: null, expiresAt: { gt: now }, attempts: { lt: CODE_MAX_ATTEMPTS } },
-    data: { attempts: { increment: 1 } },
-  });
-  const want = Buffer.from(row.codeHash, "hex");
-  const got = hashCode(code, user.id);
-  const matches = want.length === got.length && timingSafeEqual(want, got);
-  if (taken.count === 0 || !matches) return wrong;
+  const right = await tryCode(
+    () =>
+      prisma.passwordResetCode.updateMany({
+        where: { id: row.id, usedAt: null, expiresAt: { gt: now }, attempts: { lt: CODE_MAX_ATTEMPTS } },
+        data: { attempts: { increment: 1 } },
+      }),
+    row.codeHash,
+    hashCode(code, user.id),
+  );
+  if (!right) return wrong;
 
   const passwordHash = await hashPassword(password);
   const done = await prisma.$transaction(async (tx) => {

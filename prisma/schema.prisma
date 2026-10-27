@@ -78,6 +78,7 @@ model User {
   ideas        Idea[]
   ideaVotes    IdeaVote[]
   passwordResetCodes PasswordResetCode[]
+  teamEvents   TeamEvent[]
 }
 
 // One browser/phone that wants board changes pushed to it. A person can
@@ -257,6 +258,48 @@ model PasswordResetCode {
   user User @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId])
+}
+
+// A self sign-up waiting for its emailed code; see src/modules/auth/signup.ts.
+// Nothing here is an account yet: the User row is made only when the code
+// comes back. Holds the password the person chose (bcrypt, as on User) and
+// an HMAC of the code. One row per address: asking again replaces it.
+model SignupRequest {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  name         String
+  passwordHash String
+  codeHash     String
+  expiresAt    DateTime
+  // Wrong tries against this code; it is dead at five.
+  attempts     Int      @default(0)
+  createdAt    DateTime @default(now())
+}
+
+// Board-wide switches an owner can flip. A single row (id = 1), like
+// BoardRevision; no row reads as every default.
+model BoardSetting {
+  id          Int      @id @default(1)
+  // Whether /signup takes new accounts. On by default — the owners asked
+  // for sign-up — and only ever offered while email sending is configured.
+  signupsOpen Boolean  @default(true)
+  updatedAt   DateTime @updatedAt
+}
+
+// Things that happened to the team rather than to a task, for the owners'
+// bell. Activity cannot carry these: its task is required, and the bell's
+// feed is built on it. Today the one type is "joined" (somebody signed
+// themselves up); see src/modules/notifications/queries.ts.
+model TeamEvent {
+  id        String   @id @default(cuid())
+  type      String
+  // Who it is about, shown as the one who did it ("Asha joined the board").
+  userId    String
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([createdAt])
 }
 
 // The Ideas page: opinions and ideas, threaded like Reddit. Apart from the

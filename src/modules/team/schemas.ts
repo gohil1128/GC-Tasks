@@ -68,6 +68,8 @@ export const profileSchema = z.object({
 
 export const activeSchema = z.boolean({ message: "Say whether the account should be active." });
 
+export const signupsOpenSchema = z.boolean({ message: "Say whether sign-ups should be open." });
+
 /** The first problem with an input, as a sentence for the person who typed it. */
 export function firstIssue(error: z.ZodError): string {
   return error.issues[0]?.message ?? "Check the form and try again.";

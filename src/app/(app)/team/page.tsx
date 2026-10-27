@@ -3,7 +3,8 @@ import { redirect } from "next/navigation";
 import { APP_SHORT_NAME } from "@/lib/brand";
 import { requirePageUser } from "@/lib/page-auth";
 import { canManageTeam } from "@/lib/permissions";
-import { listTeam } from "@/modules/team/service";
+import { emailConfigured } from "@/modules/email/send";
+import { listTeam, readSignupsOpen } from "@/modules/team/service";
 import { TeamView } from "./_components/team-view";
 
 export const dynamic = "force-dynamic";
@@ -14,6 +15,8 @@ export default async function TeamPage() {
   const me = await requirePageUser();
   if (!canManageTeam(me)) redirect("/");
 
-  const members = await listTeam();
-  return <TeamView members={members} meId={me.id} />;
+  const [members, signupsOpen] = await Promise.all([listTeam(), readSignupsOpen()]);
+  return (
+    <TeamView members={members} meId={me.id} signups={{ open: signupsOpen, emailReady: emailConfigured() }} />
+  );
 }

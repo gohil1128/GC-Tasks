@@ -9,6 +9,7 @@ import {
   canJoinTask,
   canLeaveTask,
   canManageLabels,
+  canManageSignups,
   canManageTeam,
   canMoveTask,
   canWorkChecklist,
@@ -43,6 +44,7 @@ describe("owners", () => {
     expect(canArchiveOrDelete(owner)).toBe(true);
     expect(canManageLabels(owner)).toBe(true);
     expect(canManageTeam(owner)).toBe(true);
+    expect(canManageSignups(owner)).toBe(true);
   });
 
   it("can delete anyone's comment but only edit their own", () => {
@@ -59,6 +61,7 @@ describe("staff", () => {
     expect(canArchiveOrDelete(staff)).toBe(false);
     expect(canManageLabels(staff)).toBe(false);
     expect(canManageTeam(staff)).toBe(false);
+    expect(canManageSignups(staff)).toBe(false);
   });
 
   it("moves and works the checklist only on tasks they are on", () => {

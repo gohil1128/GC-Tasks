@@ -15,6 +15,7 @@ import {
 import type { TeamMember } from "@/modules/team/types";
 import { AddMemberDialog, type AddedMember } from "./add-member-dialog";
 import { MemberRow, type MemberRequest } from "./member-row";
+import { SignupsSwitch } from "./signups-switch";
 import { TempPasswordDialog, type Reveal } from "./temp-password-dialog";
 
 type Pending = { request: Exclude<MemberRequest, "promote">; member: TeamMember };
@@ -24,7 +25,15 @@ type Pending = { request: Exclude<MemberRequest, "promote">; member: TeamMember 
   each change the page is refreshed and re-read, so what is shown is what the
   database says — including anything another owner did in the meantime.
 */
-export function TeamView({ members, meId }: { members: TeamMember[]; meId: string }) {
+export function TeamView({
+  members,
+  meId,
+  signups,
+}: {
+  members: TeamMember[];
+  meId: string;
+  signups: { open: boolean; emailReady: boolean };
+}) {
   const router = useRouter();
   const [adding, setAdding] = React.useState(false);
   const [reveal, setReveal] = React.useState<Reveal | null>(null);
@@ -97,6 +106,8 @@ export function TeamView({ members, meId }: { members: TeamMember[]; meId: strin
           Add teammate
         </Button>
       </div>
+
+      <SignupsSwitch open={signups.open} emailReady={signups.emailReady} />
 
       <MemberGroup
         id="owners"

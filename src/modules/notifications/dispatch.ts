@@ -3,7 +3,13 @@ import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 import { APP_SHORT_NAME } from "@/lib/brand";
 import type { PendingActivity } from "@/modules/notifications/context";
-import { notificationText, pendingToDTO, pickPushEntry } from "@/modules/notifications/text";
+import {
+  notificationText,
+  pendingToDTO,
+  pickPushEntry,
+  teamEventSentence,
+  type TeamEventType,
+} from "@/modules/notifications/text";
 
 /*
   Push fan-out for a committed board write.
@@ -19,6 +25,9 @@ import { notificationText, pendingToDTO, pickPushEntry } from "@/modules/notific
   (the push service answers 404/410) is deleted, never retried; and no
   failure here can fail or roll back the write that caused it — the write
   has already committed by the time this runs.
+
+  Team events (somebody signing themselves up) go out the same way, but
+  to active owners only; see scheduleTeamPush.
 */
 
 let vapidReady: boolean | null = null;
@@ -44,13 +53,23 @@ function ensureVapid(): boolean {
  */
 export function schedulePush(entries: PendingActivity[]): void {
   if (entries.length === 0) return;
-  const task = () => dispatchActivityNotifications(entries);
+  runAfter(() => dispatchActivityNotifications(entries));
+}
+
+/** The same, for a committed team event: active owners are told. */
+export function scheduleTeamPush(event: { type: TeamEventType; userId: string; name: string }): void {
+  runAfter(() => dispatchTeamNotification(event));
+}
+
+function runAfter(task: () => Promise<void>): void {
   try {
     after(task);
   } catch {
     void task();
   }
 }
+
+type Payload = { body: string; tag: string; url: string };
 
 export async function dispatchActivityNotifications(entries: PendingActivity[]): Promise<void> {
   try {
@@ -77,16 +96,10 @@ export async function dispatchActivityNotifications(entries: PendingActivity[]):
     const recipientIds = recipients.map((r) => r.id).filter((id) => !actorIds.includes(id));
     if (recipientIds.length === 0) return;
 
-    const subs = await prisma.pushSubscription.findMany({
-      where: { userId: { in: recipientIds } },
-      select: { id: true, endpoint: true, p256dh: true, auth: true },
-    });
-    if (subs.length === 0) return;
-
     const now = new Date();
     const bulkArchive =
       groups.size > 1 && entries.every((e) => e.type === "archived");
-    const payloads: Array<{ body: string; tag: string; url: string }> = bulkArchive
+    const payloads: Payload[] = bulkArchive
       ? [
           {
             body: `${nameOf(entries[0]!.actorId)} archived ${taskIds.length} completed tasks`,
@@ -109,28 +122,60 @@ export async function dispatchActivityNotifications(entries: PendingActivity[]):
           };
         });
 
-    const dead: string[] = [];
-    await Promise.all(
-      subs.flatMap((sub) =>
-        payloads.map(async (payload) => {
-          try {
-            await webpush.sendNotification(
-              { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
-              JSON.stringify({ title: APP_SHORT_NAME, ...payload }),
-            );
-          } catch (err) {
-            const status = (err as { statusCode?: number }).statusCode;
-            if (status === 404 || status === 410) dead.push(sub.id);
-            // Any other failure (a push service hiccup) is dropped, not
-            // retried: the bell still carries the change.
-          }
-        }),
-      ),
-    );
-    if (dead.length) {
-      await prisma.pushSubscription.deleteMany({ where: { id: { in: [...new Set(dead)] } } });
-    }
+    await sendPushes(recipientIds, payloads);
   } catch (err) {
     console.error("push dispatch failed", err);
+  }
+}
+
+export async function dispatchTeamNotification(event: {
+  type: TeamEventType;
+  userId: string;
+  name: string;
+}): Promise<void> {
+  try {
+    if (!ensureVapid()) return;
+    const owners = await prisma.user.findMany({
+      where: { role: "OWNER", active: true, id: { not: event.userId } },
+      select: { id: true },
+    });
+    await sendPushes(
+      owners.map((o) => o.id),
+      [{ body: `${event.name} ${teamEventSentence(event.type)}`, tag: `team-${event.userId}`, url: "/team" }],
+    );
+  } catch (err) {
+    console.error("push dispatch failed", err);
+  }
+}
+
+/** Every payload to every device of these people; dead subscriptions are deleted. */
+async function sendPushes(recipientIds: string[], payloads: Payload[]): Promise<void> {
+  if (recipientIds.length === 0 || payloads.length === 0) return;
+  const subs = await prisma.pushSubscription.findMany({
+    where: { userId: { in: recipientIds } },
+    select: { id: true, endpoint: true, p256dh: true, auth: true },
+  });
+  if (subs.length === 0) return;
+
+  const dead: string[] = [];
+  await Promise.all(
+    subs.flatMap((sub) =>
+      payloads.map(async (payload) => {
+        try {
+          await webpush.sendNotification(
+            { endpoint: sub.endpoint, keys: { p256dh: sub.p256dh, auth: sub.auth } },
+            JSON.stringify({ title: APP_SHORT_NAME, ...payload }),
+          );
+        } catch (err) {
+          const status = (err as { statusCode?: number }).statusCode;
+          if (status === 404 || status === 410) dead.push(sub.id);
+          // Any other failure (a push service hiccup) is dropped, not
+          // retried: the bell still carries the change.
+        }
+      }),
+    ),
+  );
+  if (dead.length) {
+    await prisma.pushSubscription.deleteMany({ where: { id: { in: [...new Set(dead)] } } });
   }
 }

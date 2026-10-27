@@ -20,6 +20,7 @@ This app is separate from God's Chai Operations. It has its own database, its ow
 | Archive, restore and delete tasks; delete anyone's comment | ✓ | — |
 | Manage labels | ✓ | — |
 | Add teammates, change roles, reset passwords, deactivate accounts | ✓ | — |
+| Open and close sign-ups (who may create their own account) | ✓ | — |
 | Ideas: share an idea, reply anywhere in a thread, upvote other people's posts (once each, not your own) | ✓ | ✓ |
 | Ideas: edit or delete their own ideas and replies | ✓ | ✓ |
 | Ideas: delete anyone's idea or reply | ✓ | — |
@@ -37,6 +38,7 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
 - **Filters.** My tasks, by person, by label, by priority, and search. Press `n` for a new task and `/` to search.
 - **Archive.** Hide finished tasks from the board, and restore them later.
 - **Ideas.** A Reddit-style page next to the board for opinions and ideas. Anyone can share an idea (a title, plus optional detail), and the team replies in nested threads — to the idea or to any reply. Upvote the good ones: one upvote each, and not on your own posts. Sort the list by **Top** (most upvoted, then newest) or **New**. Replies are ordered by upvotes, then oldest first; tap a reply's arrow or its thread line to collapse it. Deleting something that has replies leaves it in place as *[deleted]*, so the conversation under it stays readable; anything with no replies is removed outright. Ideas are separate from the board: they don't touch tasks or send board notifications.
+- **Sign-up.** With email set up, new people can create their own Staff account from the sign-in page, confirmed by an emailed code. Owners can turn this off on the Team page. See [Sign-up](#sign-up).
 - **Team.** Owners add teammates as Owner or Staff. The app creates a one-time password, and the new person chooses their own password the first time they sign in. Owners can also change someone's role, reset their password, or deactivate their account. A deactivated person's name stays on their old tasks and comments, but they can't sign in. The board always keeps at least one active owner.
 
 ## Deploy (Vercel + Neon)
@@ -47,7 +49,7 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
    - `AUTH_SECRET`: any random string of 32 or more characters.
    - `AUTH_TRUST_HOST`: `true`
    - For device push notifications, also add a VAPID pair: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` (a `mailto:` contact URI). The in-app bell works without them.
-   - For **Forgot password?** by email, also add `RESEND_API_KEY` and `EMAIL_FROM` (see [Password reset by email](#password-reset-by-email)). Without them, owners reset passwords from the Team page.
+   - For **Forgot password?** and **sign-up** by email, also add `RESEND_API_KEY` and `EMAIL_FROM` (see [Password reset by email](#password-reset-by-email)). Without them, owners reset passwords and add people from the Team page.
 4. Deploy. This first build fails because there is no database yet. That's expected. Next, open the project's **Storage** tab, choose **Create Database → Neon**, and connect it to the project. Leave the environment variable prefix empty. This sets `DATABASE_URL`, the pooled connection the app uses, and `DATABASE_URL_UNPOOLED`, the direct connection the build uses for migrations. (Migrations through the pooler leave a lock behind that can fail a later build; without `DATABASE_URL_UNPOOLED`, as locally and in CI, the build migrates over `DATABASE_URL`.) Then use **Deployments → ⋯ → Redeploy**. Each build applies the database migrations automatically.
 5. Open the site. The first visit goes to **/setup**, where you create the first account, which is an owner. That page only works while there are no accounts. After that, add everyone else from the **Team** page.
 
@@ -65,6 +67,18 @@ With email set up, the sign-in page shows **Forgot password?**. People enter the
 The form gives the same answer whether or not an email has an account, and deactivated accounts get no email. Code requests and attempts count against limits like sign-in does. If an email can't be sent, the error is in the Vercel logs (**Logs**, search for "Password reset email"); the code itself is never logged or stored, only a keyed hash of it.
 
 `EMAIL_DEV_LOG_DIR` is for local browser tests only: when set, emails are written as JSON files to that folder instead of being sent. It's ignored on Vercel; never set it there.
+
+## Sign-up
+
+With email set up (the same Resend setup as [password reset](#password-reset-by-email): `RESEND_API_KEY` and `EMAIL_FROM`), the sign-in page shows **New to the team? Create an account**. Anyone with any email address can use it:
+
+1. On **/signup** they enter their name, email and a password (twice).
+2. They get a 6-digit code by email (valid for 10 minutes, 5 tries, one use) and enter it on the next page.
+3. Their account is created as **Staff**, they're signed straight in, and every active owner gets a bell notification (and a push, if they've turned those on): *"Asha joined the board as Staff."* Owners can make them an owner from the Team page.
+
+The page answers the same way whether or not an email already has an account. An email that does gets a short note by email instead of a code ("You already have one: sign in, or use Forgot password"), and nothing is created. Requests and code attempts count against limits like sign-in does. Until the code comes back there is no account, only a pending sign-up holding a bcrypt hash of the chosen password and a keyed hash of the code.
+
+**Turning it off.** Staff can see every task on the board, so an open sign-up means anyone who finds the link can read the board. Owners switch **Allow sign-ups** on the **Team** page. It's on by default. When it's off, the link is hidden, /signup and /signup/verify don't exist, and sign-ups still waiting for their code are thrown away. If someone you don't know signs up, deactivate them from the Team page; they're signed out at once. Without email set up, sign-up is off whatever the switch says.
 
 ## Locked out?
 

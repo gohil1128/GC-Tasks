@@ -6,6 +6,7 @@ import { APP_NAME, APP_SHORT_NAME } from "@/lib/brand";
 import { passwordResetEnabled } from "@/modules/auth/password-reset";
 import { safeNextPath } from "@/modules/auth/safe-next";
 import { hasAnyUser } from "@/modules/auth/setup";
+import { signupsAvailable } from "@/modules/auth/signup";
 import { BrandLogo } from "@/components/shell/brand-logo";
 import { LoginForm } from "../_components/login-form";
 
@@ -21,6 +22,8 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
   const me = await currentUser();
   if (me) redirect(me.mustChangePassword ? "/change-password" : next);
+
+  const canSignUp = await signupsAvailable();
 
   return (
     <div className="grid min-h-dvh lg:grid-cols-2">
@@ -77,6 +80,18 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           ) : (
             <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">
               Forgotten your password? Ask an owner to reset it for you from the Team page.
+            </p>
+          )}
+          {/* Needs email sending too, and an owner can close it from the Team page. */}
+          {canSignUp && (
+            <p className="mt-3 text-center text-sm text-muted-foreground">
+              New to the team?{" "}
+              <Link
+                href="/signup"
+                className="rounded text-brand-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Create an account
+              </Link>
             </p>
           )}
         </div>

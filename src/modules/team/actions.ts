@@ -8,6 +8,7 @@ import {
   sessionFailure,
   setMemberActive,
   setMemberRole,
+  setSignupsOpen,
   updateProfile,
 } from "@/modules/team/service";
 
@@ -61,6 +62,11 @@ export async function setMemberActiveAction(id: string, active: boolean): Promis
 */
 export async function setMemberRoleAction(id: string, role: Role): Promise<ActionResult<Member>> {
   return asSignedIn((actor) => setMemberRole(actor, id, role));
+}
+
+/** Open or close self sign-up. Owners only. */
+export async function setSignupsOpenAction(open: boolean): Promise<ActionResult<{ signupsOpen: boolean }>> {
+  return asSignedIn((actor) => setSignupsOpen(actor, open));
 }
 
 /** Your own name and avatar colour. Anyone, owner or staff. */

@@ -1,7 +1,7 @@
 import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 import { colorForSeed } from "@/lib/colors";
-import { canManageTeam, type Actor } from "@/lib/permissions";
+import { canManageSignups, canManageTeam, type Actor } from "@/lib/permissions";
 import { generatePassword, hashPassword } from "@/modules/auth/password";
 import { loginKeys } from "@/modules/auth/rate-limit";
 import { bumpRevision, lockBoard, readRevision } from "@/modules/tasks/revision";
@@ -9,6 +9,7 @@ import type { ActionResult, ErrorCode, Member } from "@/modules/tasks/types";
 import {
   activeSchema,
   addMemberSchema,
+  signupsOpenSchema,
   firstIssue,
   memberIdSchema,
   profileSchema,
@@ -148,7 +149,7 @@ async function otherActiveOwners(tx: Tx, excludingId: string): Promise<number> {
   compares lower() to lower() rather than using Prisma's insensitive mode,
   which is ILIKE and reads an _ in the address as "any character".
 */
-async function emailInUse(tx: Tx, email: string): Promise<boolean> {
+export async function emailInUse(tx: Tx | typeof prisma, email: string): Promise<boolean> {
   const rows = await tx.$queryRaw<{ id: string }[]>`
     SELECT "id" FROM "User" WHERE lower("email") = lower(${email}) LIMIT 1`;
   return rows.length > 0;
@@ -330,6 +331,49 @@ export async function setMemberRole(actor: Actor, id: unknown, role: unknown): P
       const row = await tx.user.update({ where: { id: target.id }, data: { role: newRole }, select: memberSelect });
       const revision = await bumpRevision(tx);
       return { ok: true as const, data: toMember(row), revision };
+    });
+  } catch (err) {
+    return settle(err);
+  }
+}
+
+// ── Sign-up switch ────────────────────────────────────────────────────────
+
+/*
+  Whether /signup takes new accounts (BoardSetting, row 1). A missing row is
+  the default, open: the owners asked for sign-up. It is only part of the
+  picture — sign-up also needs email sending; see signupsAvailable() in
+  src/modules/auth/signup.ts.
+*/
+export async function readSignupsOpen(db: Tx | typeof prisma = prisma): Promise<boolean> {
+  const row = await db.boardSetting.findUnique({ where: { id: 1 }, select: { signupsOpen: true } });
+  return row?.signupsOpen ?? true;
+}
+
+/**
+  Owners open and close sign-up. Under the team lock, so it cannot cross a
+  sign-up finishing at the same moment: that one re-reads the switch under
+  the same lock. Closing also throws away every sign-up still waiting for
+  its code, so nobody half-way through gets in when it is opened again.
+*/
+export async function setSignupsOpen(actor: Actor, open: unknown): Promise<ActionResult<{ signupsOpen: boolean }>> {
+  if (!canManageSignups(actor)) return fail("FORBIDDEN", "Only owners can open or close sign-ups.");
+  const parsed = signupsOpenSchema.safeParse(open);
+  if (!parsed.success) return fail("INVALID", firstIssue(parsed.error));
+  const signupsOpen = parsed.data;
+
+  try {
+    return await prisma.$transaction(async (tx) => {
+      await lockTeam(tx);
+      await assertStillOwner(tx, actor);
+      await tx.boardSetting.upsert({
+        where: { id: 1 },
+        create: { id: 1, signupsOpen },
+        update: { signupsOpen },
+      });
+      if (!signupsOpen) await tx.signupRequest.deleteMany();
+      // Nothing on the board changes, so the revision does not move.
+      return { ok: true as const, data: { signupsOpen }, revision: await readRevision(tx) };
     });
   } catch (err) {
     return settle(err);

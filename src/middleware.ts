@@ -10,6 +10,8 @@ const PUBLIC_EXACT = new Set([
   "/recover",
   "/forgot-password",
   "/forgot-password/verify",
+  "/signup",
+  "/signup/verify",
   "/api/auth",
 ]);
 const PUBLIC_PREFIXES = ["/api/auth/"];
