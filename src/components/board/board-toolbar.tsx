@@ -1,6 +1,6 @@
 "use client";
 import * as React from "react";
-import { ArrowUp, ChevronDown, CloudOff, Flame, Plus, RefreshCw, Search, Tag, X } from "lucide-react";
+import { ArrowUp, ChevronDown, CloudOff, Flame, Plus, Search, Tag, X } from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
 import {
@@ -38,7 +38,6 @@ export function BoardToolbar({
   canCreate,
   onNewTask,
   searchRef,
-  refreshing,
   offline,
   onRefresh,
 }: {
@@ -51,7 +50,6 @@ export function BoardToolbar({
   canCreate: boolean;
   onNewTask: () => void;
   searchRef: React.Ref<HTMLInputElement>;
-  refreshing: boolean;
   offline: boolean;
   onRefresh: () => void;
 }) {
@@ -61,21 +59,20 @@ export function BoardToolbar({
     <div className="flex shrink-0 flex-col gap-3 px-4 pb-3 pt-4 sm:px-6">
       <div className="flex items-center gap-2">
         <h1 className="display truncate text-2xl font-semibold leading-tight">Team board</h1>
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-sm"
-          onClick={onRefresh}
-          aria-label={offline ? "Can't reach the server. Retry now" : "Refresh the board"}
-          title={offline ? "Can't reach the server — retrying. Click to retry now." : "Refresh the board"}
-          className={cn("text-muted-foreground", offline && "text-warning")}
-        >
-          {offline ? (
+        {/* Refreshing is a pull down on a column now; this only appears when the server can't be reached. */}
+        {offline && (
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-sm"
+            onClick={onRefresh}
+            aria-label="Can't reach the server. Retry now"
+            title="Can't reach the server — retrying. Tap to retry now."
+            className="text-warning"
+          >
             <CloudOff className="h-4 w-4" aria-hidden />
-          ) : (
-            <RefreshCw className={cn("h-4 w-4", refreshing && "animate-spin")} aria-hidden />
-          )}
-        </Button>
+          </Button>
+        )}
         {canCreate && (
           <Button
             type="button"

@@ -5,11 +5,16 @@ import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /*
-  Pull down to refresh, on every page: the board (each of its three
-  columns), Ideas, Team and Settings. An installed web app has no browser
+  Pull down to refresh, on every page. An installed web app has no browser
   refresh button, so this is the way to fetch what others have changed.
 
-  It listens on the scrolling area under the header. A pull begins only when
+  Two places use it. On Ideas, Team and Settings the whole page under the
+  header moves (PullToRefresh, which renders <main>). On the board only the
+  column under the finger moves — the title, search, filters and tab bar stay
+  put — so the board opts out of the page-wide pull (data-own-pull) and wires
+  usePullToRefresh to its columns itself.
+
+  A pull begins only when
   the finger lands with nothing above it left to scroll (the column or page
   is at its top) and moves clearly downward; from then on the content
   follows the finger with resistance, an indicator turns as the pull grows,
@@ -21,6 +26,11 @@ import { cn } from "@/lib/utils";
   waiting on (the board refetches its tasks), and the page's server data is
   re-read with router.refresh(). The indicator stays until both are done,
   for at least a moment so it never just flashes.
+
+  Everything while the finger is down is written straight to the DOM (the
+  moving element's transform, the indicator's size and spin), so a pull
+  costs no React renders — on the board that would be the whole board, every
+  frame.
 */
 
 export const REFRESH_EVENT = "gc:refresh";
@@ -70,59 +80,90 @@ function blockedStart(target: EventTarget | null): boolean {
   return !!field && field === document.activeElement;
 }
 
-export function PullToRefresh({ children }: { children: React.ReactNode }) {
-  const router = useRouter();
-  const [pull, setPull] = React.useState(0);
-  const [phase, setPhase] = React.useState<"idle" | "pulling" | "refreshing">("idle");
-  const [, startTransition] = React.useTransition();
+/** Re-read everything: whoever listens for REFRESH_EVENT (the board's tasks), and the page's server data. */
+export async function refreshEverything(router: { refresh: () => void }): Promise<void> {
+  const started = Date.now();
+  const waits: Promise<unknown>[] = [];
+  window.dispatchEvent(
+    new CustomEvent<RefreshEventDetail>(REFRESH_EVENT, { detail: { wait: (work) => waits.push(work.catch(() => {})) } }),
+  );
+  waits.push(
+    new Promise<void>((resolve) => {
+      React.startTransition(() => router.refresh());
+      // A transition has no "done" callback; the refresh lands within a frame or two of this.
+      setTimeout(resolve, 450);
+    }),
+  );
+  await Promise.all(waits);
+  const left = MIN_SPIN_MS - (Date.now() - started);
+  if (left > 0) await new Promise((r) => setTimeout(r, left));
+}
 
-  const mainRef = React.useRef<HTMLElement | null>(null);
-  const routerRef = React.useRef(router);
-  routerRef.current = router;
-  const busy = React.useRef(false);
+type PullOptions = {
+  /** The element that moves with the finger, chosen from where the touch began (null: no pull here). */
+  getTarget: (touched: Element) => HTMLElement | null;
+  /** The PullIndicator to drive. */
+  getIndicator: () => HTMLElement | null;
+  onRefresh: () => Promise<void>;
+  /** Touches this listener should leave alone (somebody else handles them). */
+  skip?: (touched: Element) => boolean;
+};
 
-  const refresh = React.useCallback(async () => {
-    const started = Date.now();
-    const waits: Promise<unknown>[] = [];
-    window.dispatchEvent(
-      new CustomEvent<RefreshEventDetail>(REFRESH_EVENT, { detail: { wait: (work) => waits.push(work.catch(() => {})) } }),
-    );
-    // The page's own server data (Team, Ideas, Settings; the board's labels and people).
-    waits.push(
-      new Promise<void>((resolve) => {
-        startTransition(() => {
-          routerRef.current.refresh();
-          // A transition has no "done" callback; the refresh lands within a frame or two of this.
-          setTimeout(resolve, 450);
-        });
-      }),
-    );
-    await Promise.all(waits);
-    const left = MIN_SPIN_MS - (Date.now() - started);
-    if (left > 0) await new Promise((r) => setTimeout(r, left));
-  }, []);
+/** Drives a PullIndicator directly: its height follows the pull, the icon turns, then spins while refreshing. */
+function drawIndicator(indicator: HTMLElement | null, px: number, refreshing: boolean) {
+  if (!indicator) return;
+  const progress = Math.min(px / THRESHOLD_PX, 1);
+  indicator.style.height = `${Math.max(px, 0)}px`;
+  indicator.style.opacity = px > 0 || refreshing ? "1" : "0";
+  if (refreshing) indicator.setAttribute("data-refreshing", "true");
+  else indicator.removeAttribute("data-refreshing");
+  const dot = indicator.firstElementChild as HTMLElement | null;
+  if (dot) {
+    dot.style.transform = `scale(${0.6 + 0.4 * (refreshing ? 1 : progress)})`;
+    dot.style.opacity = String(refreshing ? 1 : Math.min(1, progress * 1.4));
+    const icon = dot.firstElementChild as SVGElement | null;
+    if (icon) icon.style.transform = refreshing ? "" : `rotate(${progress * 270}deg)`;
+  }
+  const status = indicator.querySelector("[role=status]");
+  if (status) status.textContent = refreshing ? "Refreshing" : "";
+}
 
-  React.useEffect(() => {
-    const main = mainRef.current;
-    if (!main) return;
+/**
+ * Pull to refresh on whatever element the returned ref is put on. Stable: the
+ * ref and its listeners do not change between renders.
+ */
+export function usePullToRefresh(options: PullOptions): (root: HTMLElement | null) => void {
+  const latest = React.useRef(options);
+  latest.current = options;
+  const detach = React.useRef<(() => void) | null>(null);
+
+  return React.useCallback((root: HTMLElement | null) => {
+    detach.current?.();
+    detach.current = null;
+    if (!root) return;
 
     let start: { x: number; y: number } | null = null;
     let mode: "pending" | "pull" | "other" = "pending";
     let pulled = 0;
+    let moving: HTMLElement | null = null;
+    let busy = false;
 
-    const content = () => main.firstElementChild as HTMLElement | null;
-    const apply = (px: number, animate: boolean) => {
-      const el = main;
-      el.style.transition = animate ? `transform 260ms ${SETTLE_EASING}` : "none";
-      el.style.transform = px ? `translateY(${px}px)` : "";
-      setPull(px);
+    const apply = (px: number, animate: boolean, refreshing = false) => {
+      if (moving) {
+        moving.style.transition = animate ? `transform 260ms ${SETTLE_EASING}` : "none";
+        moving.style.transform = px ? `translateY(${px}px)` : "";
+      }
+      drawIndicator(latest.current.getIndicator(), px, refreshing);
     };
 
     const onTouchStart = (e: TouchEvent) => {
       start = null;
-      if (busy.current || e.touches.length !== 1) return;
+      if (busy || e.touches.length !== 1 || !(e.target instanceof Element)) return;
       if (document.body.hasAttribute("data-board-dragging") || blockedStart(e.target)) return;
-      if (!atTop(e.target, main)) return;
+      if (latest.current.skip?.(e.target)) return;
+      const target = latest.current.getTarget(e.target);
+      if (!target || !atTop(e.target, target)) return;
+      moving = target;
       const t = e.touches[0]!;
       start = { x: t.clientX, y: t.clientY };
       mode = "pending";
@@ -147,9 +188,8 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
         }
         if (dy < ARM_PX) return;
         // Something scrolled up under the finger while it was pending (momentum): wait for the top.
-        if (!atTop(e.target, main)) return;
+        if (!moving || !atTop(e.target, moving)) return;
         mode = "pull";
-        setPhase("pulling");
       }
       if (mode !== "pull") return;
       e.preventDefault();
@@ -165,65 +205,78 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
       if (was !== "pull") return;
       if (!shouldRefresh(pulled)) {
         apply(0, true);
-        setPhase("idle");
         return;
       }
-      busy.current = true;
-      setPhase("refreshing");
-      apply(THRESHOLD_PX * 0.85, true);
+      busy = true;
+      apply(THRESHOLD_PX * 0.85, true, true);
       try {
-        await refresh();
+        await latest.current.onRefresh();
       } finally {
         apply(0, true);
-        setPhase("idle");
-        busy.current = false;
-        void content();
+        busy = false;
       }
     };
 
-    main.addEventListener("touchstart", onTouchStart, { passive: true });
-    main.addEventListener("touchmove", onTouchMove, { passive: false });
-    main.addEventListener("touchend", onTouchEnd);
-    main.addEventListener("touchcancel", onTouchEnd);
-    return () => {
-      main.removeEventListener("touchstart", onTouchStart);
-      main.removeEventListener("touchmove", onTouchMove);
-      main.removeEventListener("touchend", onTouchEnd);
-      main.removeEventListener("touchcancel", onTouchEnd);
+    root.addEventListener("touchstart", onTouchStart, { passive: true });
+    root.addEventListener("touchmove", onTouchMove, { passive: false });
+    root.addEventListener("touchend", onTouchEnd);
+    root.addEventListener("touchcancel", onTouchEnd);
+    detach.current = () => {
+      root.removeEventListener("touchstart", onTouchStart);
+      root.removeEventListener("touchmove", onTouchMove);
+      root.removeEventListener("touchend", onTouchEnd);
+      root.removeEventListener("touchcancel", onTouchEnd);
     };
-  }, [refresh]);
+  }, []);
+}
 
-  const progress = Math.min(pull / THRESHOLD_PX, 1);
+/** The spinner in the gap a pull opens. Drawn by usePullToRefresh; place it at the top of the area that moves. */
+export const PullIndicator = React.forwardRef<HTMLDivElement, { className?: string }>(function PullIndicator(
+  { className },
+  ref,
+) {
+  return (
+    <div
+      ref={ref}
+      className={cn("group pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center", className)}
+      style={{ height: 0, opacity: 0 }}
+    >
+      <span
+        aria-hidden
+        className="mt-2 flex h-9 w-9 items-center justify-center self-start rounded-full border border-border bg-card shadow-card group-data-[refreshing=true]:animate-pulse"
+      >
+        <RefreshCw className="h-4 w-4 text-muted-foreground group-data-[refreshing=true]:animate-spin" />
+      </span>
+      <span role="status" aria-live="polite" className="sr-only" />
+    </div>
+  );
+});
+
+/** The page-wide pull for Ideas, Team and Settings (the board does its own; see the note at the top). */
+export function PullToRefresh({ children }: { children: React.ReactNode }) {
+  const router = useRouter();
+  const indicator = React.useRef<HTMLDivElement | null>(null);
+  const main = React.useRef<HTMLElement | null>(null);
+  const pullRef = usePullToRefresh({
+    getTarget: () => main.current,
+    getIndicator: () => indicator.current,
+    onRefresh: () => refreshEverything(router),
+    skip: (touched) => !!touched.closest("[data-own-pull]"),
+  });
+  const mainRef = React.useCallback(
+    (el: HTMLElement | null) => {
+      main.current = el;
+      pullRef(el);
+    },
+    [pullRef],
+  );
+
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
-      <div
-        aria-hidden
-        className="pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center"
-        style={{ height: Math.max(pull, 0), opacity: phase === "idle" && pull === 0 ? 0 : 1 }}
-      >
-        <span
-          className={cn(
-            "mt-2 flex h-9 w-9 items-center justify-center self-start rounded-full border border-border bg-card shadow-card",
-            phase === "refreshing" && "animate-pulse",
-          )}
-          style={{ transform: `scale(${0.6 + 0.4 * progress})`, opacity: Math.min(1, progress * 1.4) }}
-        >
-          <RefreshCw
-            className={cn("h-4 w-4 text-muted-foreground", phase === "refreshing" && "animate-spin")}
-            style={phase === "refreshing" ? undefined : { transform: `rotate(${progress * 270}deg)` }}
-          />
-        </span>
-      </div>
-      <main
-        id="main"
-        ref={mainRef}
-        className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain"
-      >
+      <PullIndicator ref={indicator} />
+      <main id="main" ref={mainRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
         {children}
       </main>
-      <span role="status" aria-live="polite" className="sr-only">
-        {phase === "refreshing" ? "Refreshing" : ""}
-      </span>
     </div>
   );
 }

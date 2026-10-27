@@ -1,5 +1,6 @@
 "use client";
 import * as React from "react";
+import { useRouter } from "next/navigation";
 import {
   DndContext,
   DragOverlay,
@@ -83,7 +84,13 @@ import { BoardToolbar } from "./board-toolbar";
 import { ColumnTabs } from "./column-tabs";
 import { StaffNotice } from "./staff-notice";
 import { DraggedCard } from "./task-card";
-import { REFRESH_EVENT, type RefreshEventDetail } from "@/components/shell/pull-to-refresh";
+import {
+  PullIndicator,
+  REFRESH_EVENT,
+  refreshEverything,
+  usePullToRefresh,
+  type RefreshEventDetail,
+} from "@/components/shell/pull-to-refresh";
 import { useBoardSync } from "./use-board-sync";
 import { useColumnSwipe } from "./use-column-swipe";
 import { useIsPhone } from "./use-is-phone";
@@ -280,6 +287,21 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
     enabled: drag === null,
     getPill: () => tabPillRef.current,
   });
+  // Pull down on a column to refresh: only that column moves, the rest of the board stays put.
+  const router = useRouter();
+  const columnPullIndicator = React.useRef<HTMLDivElement | null>(null);
+  const columnPullRef = usePullToRefresh({
+    getTarget: (touched) => touched.closest<HTMLElement>('section[id^="board-column-"]'),
+    getIndicator: () => columnPullIndicator.current,
+    onRefresh: () => refreshEverything(router),
+  });
+  const columnsRef = React.useCallback(
+    (el: HTMLElement | null) => {
+      columnSwipeRef(el);
+      columnPullRef(el);
+    },
+    [columnSwipeRef, columnPullRef],
+  );
   const lastOverId = React.useRef<UniqueIdentifier | null>(null);
   const recentlyMovedColumn = React.useRef(false);
   const dropStatus = React.useRef<Status | null>(null);
@@ -786,7 +808,8 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
 
   return (
     <BoardProvider value={context}>
-      <div className="flex min-h-0 flex-1 flex-col">
+      {/* The board pulls to refresh by column (below), not as a whole page. */}
+      <div data-own-pull className="flex min-h-0 flex-1 flex-col">
         <BoardToolbar
           filters={filters}
           onFiltersChange={changeFilters}
@@ -796,7 +819,6 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
           canCreate={canCreate}
           onNewTask={() => setNewTaskOpen(true)}
           searchRef={searchRef}
-          refreshing={sync.refreshing}
           offline={sync.offline}
           onRefresh={sync.refresh}
         />
@@ -842,9 +864,10 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
           />
           {/* The viewport clips the track on a phone; from md up it is just padding around the grid. */}
           <div
-            ref={columnSwipeRef}
-            className="flex min-h-0 flex-1 flex-col overflow-x-clip px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:pb-6"
+            ref={columnsRef}
+            className="relative flex min-h-0 flex-1 flex-col overflow-x-clip px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:pb-6"
           >
+            <PullIndicator ref={columnPullIndicator} />
             <div className="flex min-h-0 flex-1 gap-4 will-change-transform md:grid md:grid-cols-3 md:grid-rows-[minmax(0,1fr)] md:will-change-auto">
               {STATUSES.map((status) => (
                 <BoardColumn
