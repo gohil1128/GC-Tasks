@@ -98,7 +98,8 @@ export function TeamView({
         <div>
           <h1 className="display text-3xl font-semibold">Team</h1>
           <p className="mt-1 text-sm text-muted-foreground">
-            {activeCount} active · {owners.length} {owners.length === 1 ? "owner" : "owners"}, {staff.length} staff
+            {activeCount} active · {owners.length} {owners.length === 1 ? "owner" : "owners"}, {staff.length} staff · Tap
+            someone to see what they’ve changed.
           </p>
         </div>
         <Button onClick={() => setAdding(true)}>

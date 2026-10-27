@@ -1,5 +1,14 @@
 "use client";
-import { Ellipsis, KeyRound, ShieldCheck, UserCheck, UserCog, UserX } from "lucide-react";
+import Link from "next/link";
+import {
+  ChevronRight,
+  Ellipsis,
+  KeyRound,
+  ShieldCheck,
+  UserCheck,
+  UserCog,
+  UserX,
+} from "lucide-react";
 import { Avatar } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import {
@@ -13,7 +22,12 @@ import { ROLE_LABEL } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import type { TeamMember } from "@/modules/team/types";
 
-export type MemberRequest = "promote" | "demote" | "reset" | "deactivate" | "reactivate";
+export type MemberRequest =
+  | "promote"
+  | "demote"
+  | "reset"
+  | "deactivate"
+  | "reactivate";
 
 export function MemberRow({
   member,
@@ -35,32 +49,63 @@ export function MemberRow({
         !member.active && "bg-muted shadow-none",
       )}
     >
-      <Avatar person={member} size="lg" className={cn(!member.active && "opacity-50 grayscale")} />
+      {/* Opens their profile: who they are and every change they've made. */}
+      <Link
+        href={`/team/${member.id}`}
+        aria-label={`${member.name}'s profile and changes`}
+        className="-m-1 flex min-w-0 flex-1 items-center gap-3 rounded-xl p-1 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring sm:gap-4"
+      >
+        <Avatar
+          person={member}
+          size="lg"
+          className={cn(!member.active && "opacity-50 grayscale")}
+        />
 
-      <div className="min-w-0 flex-1">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className={cn("truncate font-medium", !member.active && "text-muted-foreground")}>{member.name}</p>
-          {isMe && (
-            <Badge variant="outline" className="shrink-0 px-2 py-0.5">
-              You
+        <div className="min-w-0 flex-1">
+          <div className="flex min-w-0 items-center gap-2">
+            <p
+              className={cn(
+                "truncate font-medium",
+                !member.active && "text-muted-foreground",
+              )}
+            >
+              {member.name}
+            </p>
+            {isMe && (
+              <Badge variant="outline" className="shrink-0 px-2 py-0.5">
+                You
+              </Badge>
+            )}
+          </div>
+          <p className="truncate text-xs text-muted-foreground">
+            {member.email}
+          </p>
+          <div className="mt-2 flex flex-wrap gap-1.5">
+            <Badge variant={owner ? "brand" : "secondary"}>
+              {owner && <ShieldCheck className="h-3 w-3" aria-hidden />}
+              {ROLE_LABEL[member.role]}
             </Badge>
-          )}
+            {member.active ? (
+              <Badge variant="success">Active</Badge>
+            ) : (
+              <Badge variant="muted">Deactivated</Badge>
+            )}
+            {member.active && member.mustChangePassword && (
+              <Badge
+                variant="warning"
+                title="They're still on a temporary password and will choose their own at next sign-in."
+              >
+                <KeyRound className="h-3 w-3" aria-hidden />
+                Must set password
+              </Badge>
+            )}
+          </div>
         </div>
-        <p className="truncate text-xs text-muted-foreground">{member.email}</p>
-        <div className="mt-2 flex flex-wrap gap-1.5">
-          <Badge variant={owner ? "brand" : "secondary"}>
-            {owner && <ShieldCheck className="h-3 w-3" aria-hidden />}
-            {ROLE_LABEL[member.role]}
-          </Badge>
-          {member.active ? <Badge variant="success">Active</Badge> : <Badge variant="muted">Deactivated</Badge>}
-          {member.active && member.mustChangePassword && (
-            <Badge variant="warning" title="They're still on a temporary password and will choose their own at next sign-in.">
-              <KeyRound className="h-3 w-3" aria-hidden />
-              Must set password
-            </Badge>
-          )}
-        </div>
-      </div>
+        <ChevronRight
+          className="h-4 w-4 shrink-0 text-muted-foreground"
+          aria-hidden
+        />
+      </Link>
 
       {/* Nothing here for your own row: every one of these is refused for yourself. */}
       {!isMe && (
@@ -79,18 +124,31 @@ export function MemberRow({
             {member.active ? (
               <>
                 {owner ? (
-                  <DropdownMenuItem onSelect={() => onRequest("demote", member)}>
-                    <UserCog className="h-4 w-4 text-muted-foreground" aria-hidden />
+                  <DropdownMenuItem
+                    onSelect={() => onRequest("demote", member)}
+                  >
+                    <UserCog
+                      className="h-4 w-4 text-muted-foreground"
+                      aria-hidden
+                    />
                     Change to staff
                   </DropdownMenuItem>
                 ) : (
-                  <DropdownMenuItem onSelect={() => onRequest("promote", member)}>
-                    <ShieldCheck className="h-4 w-4 text-muted-foreground" aria-hidden />
+                  <DropdownMenuItem
+                    onSelect={() => onRequest("promote", member)}
+                  >
+                    <ShieldCheck
+                      className="h-4 w-4 text-muted-foreground"
+                      aria-hidden
+                    />
                     Make owner
                   </DropdownMenuItem>
                 )}
                 <DropdownMenuItem onSelect={() => onRequest("reset", member)}>
-                  <KeyRound className="h-4 w-4 text-muted-foreground" aria-hidden />
+                  <KeyRound
+                    className="h-4 w-4 text-muted-foreground"
+                    aria-hidden
+                  />
                   Reset password
                 </DropdownMenuItem>
                 <DropdownMenuSeparator />
@@ -105,8 +163,13 @@ export function MemberRow({
             ) : (
               // A deactivated account can do nothing until it is back, so
               // that is the only thing offered; reset after if needed.
-              <DropdownMenuItem onSelect={() => onRequest("reactivate", member)}>
-                <UserCheck className="h-4 w-4 text-muted-foreground" aria-hidden />
+              <DropdownMenuItem
+                onSelect={() => onRequest("reactivate", member)}
+              >
+                <UserCheck
+                  className="h-4 w-4 text-muted-foreground"
+                  aria-hidden
+                />
                 Reactivate
               </DropdownMenuItem>
             )}

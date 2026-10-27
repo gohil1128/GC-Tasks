@@ -76,7 +76,7 @@ export function SignupsSwitch({ open, emailReady }: { open: boolean; emailReady:
         </button>
       </div>
       <p className="mt-3 text-xs leading-relaxed text-muted-foreground">
-        Staff see every task on the board. If someone you don&apos;t know signs up, deactivate them from their row
+        New accounts join as Staff. If someone you don&apos;t know signs up, deactivate them from their row
         below; they&apos;re signed out at once.
       </p>
     </section>

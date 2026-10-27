@@ -38,7 +38,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 
 export const ROLE_DESCRIPTION: Record<Role, string> = {
   OWNER: "Full access: creates, edits, assigns and deletes tasks, and manages labels and the team.",
-  STAFF: "Sees unclaimed tasks and what other staff are on, not what owners are working on. Moves and updates the tasks they're on, picks up unclaimed tasks, and comments.",
+  STAFF: "Moves and updates the tasks they're on, picks up unclaimed tasks, and comments.",
 };
 
 export function isRole(value: string): value is Role {
