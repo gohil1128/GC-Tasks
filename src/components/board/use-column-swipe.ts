@@ -3,25 +3,32 @@ import { flushSync } from "react-dom";
 import { STATUSES, type Status } from "@/modules/tasks/types";
 
 /*
-  Phone board: swipe left for the next column (To do → In progress → Done),
-  right for the previous one. The tabs still work; this is the faster way.
+  The phone board as a carousel: To do, In progress and Done sit side by side
+  on a track, and the track follows the finger — so the next column is already
+  there, sliding into view as you swipe, and the pill in the tab bar above
+  glides along with it instead of jumping when the swipe ends.
 
-  It has to stay out of the way of everything else a thumb does there:
+  Everything while the finger is down or the column is settling is written
+  straight to the DOM (a transform on the track and on the pill), so a swipe
+  costs no React renders. React only hears about it once, at the end, through
+  `onChange`. Position is a fractional column index, `pos` (0 = To do, 1 = In
+  progress, 2 = Done, 0.5 = halfway between); both transforms are functions of
+  it, in percentages and the fixed gaps, so they stay right if the screen is
+  resized or rotated.
+
+  Letting go carries on from where the finger was, at the speed it had: a
+  flick settles quickly, a slow drag settles slowly.
+
+  It has to stay out of the way of everything else a thumb does here:
     - scrolling a column: the gesture arms only once the movement is clearly
-      sideways (well past 12px, and more across than down), and a movement
-      that starts out vertical is a scroll for the rest of that touch;
-    - dragging a card: the card drag is press-and-hold first, and a finger
-      that moves this far this soon never becomes one; if a card drag IS
-      running (`isDragging`), the swipe stands down;
-    - the phone's own back gesture from the screen edge: touches that start
+      sideways, and a touch that starts out vertical is a scroll for good;
+    - dragging a card: when a card drag is under way (`enabled` is false) the
+      carousel steps aside completely — the other columns are hidden and the
+      track is flat, which is the layout drag-and-drop was built for;
+    - the phone's own back gesture from the screen edge: touches starting
       within EDGE_PX of either side are left to the system;
-    - typing: a touch that starts in a text field, or on anything marked
-      data-no-swipe, is ignored.
-  From md up all three columns are on screen and the gesture does not arm.
-
-  While the finger is down the column follows it (with resistance past the
-  first and last column), and on release it either commits — the next column
-  slides in from the side the finger was heading — or springs back.
+    - typing: a touch starting in a text field, or on [data-no-swipe], is ignored.
+  From md up all three columns are laid out in a grid and none of this runs.
 */
 
 export const COLUMN_SWIPE_MIN_X = 60;
@@ -31,25 +38,13 @@ export const COLUMN_FLICK_VELOCITY = 0.4;
 const ARM_PX = 12;
 const EDGE_PX = 20;
 const VELOCITY_WINDOW_MS = 100;
-const EASING = "cubic-bezier(0.32, 0.72, 0.35, 1)";
-// Close to linear: the column leaves at the speed the finger had, rather than pausing and then jumping.
-const LEAVE_EASING = "cubic-bezier(0.2, 0.2, 0.55, 0.85)";
-/** How much further (as a share of the screen width) the leaving column travels before the next arrives. */
-const LEAVE_TRAVEL = 0.35;
-
-/**
- * How long the leaving column takes to travel `distancePx` further, and the
- * arriving one to settle. The leaving column carries on at the speed the
- * finger had, so a hard flick is quick and a slow, deliberate drag gets a
- * slow, deliberate finish; both are kept inside a range that never feels
- * abrupt or sluggish. Picking up from where the finger let go (not from the
- * middle) is what keeps it fluid.
- */
-export function settleDurations(distancePx: number, velocityX: number): { out: number; in: number } {
-  const speed = Math.max(Math.abs(velocityX), 0.7); // px per ms
-  const out = Math.round(Math.min(220, Math.max(70, distancePx / speed)));
-  return { out, in: Math.round(Math.min(280, Math.max(150, out * 1.4))) };
-}
+/** gap-4 between columns on the track, and gap-1 between the tabs. Keep in step with board.tsx / column-tabs.tsx. */
+const GAP_PX = 16;
+const PILL_GAP_PX = 4;
+const LAST = STATUSES.length - 1;
+const SETTLE_EASING = "cubic-bezier(0.22, 0.8, 0.3, 1)";
+/** A tab tap or a card dragged to another column's tab: a calm, fixed slide. */
+const PROGRAMMATIC_MS = 300;
 
 /** The column a finished swipe lands on, or null to stay put. dx < 0 is a swipe to the left. */
 export function columnAfterSwipe(current: Status, dx: number, velocityX: number): Status | null {
@@ -65,6 +60,26 @@ export function columnAfterSwipe(current: Status, dx: number, velocityX: number)
   return STATUSES[next] ?? null;
 }
 
+/**
+ * How long the track takes to cover the rest of its way. It carries on at the
+ * speed the finger had (floored, so a dead-slow release still arrives), kept
+ * inside a range that never feels abrupt or sluggish.
+ */
+export function carouselSettleMs(remainingPx: number, velocityX: number): number {
+  const speed = Math.max(Math.abs(velocityX), 0.8); // px per ms
+  return Math.round(Math.min(360, Math.max(140, remainingPx / speed)));
+}
+
+/** Past the first or last column the track gives, but only a quarter as far as the finger. */
+export function rubberBand(pos: number): number {
+  if (pos < 0) return pos * 0.25;
+  if (pos > LAST) return LAST + (pos - LAST) * 0.25;
+  return pos;
+}
+
+const trackTransform = (pos: number) => `translateX(calc(${-pos * 100}% - ${pos * GAP_PX}px))`;
+const pillTransform = (pos: number) => `translateX(calc(${pos * 100}% + ${pos * PILL_GAP_PX}px))`;
+
 function startsInsideNoSwipe(target: EventTarget | null): boolean {
   if (!(target instanceof Element)) return false;
   return !!target.closest("input, textarea, select, [contenteditable=true], [data-no-swipe]");
@@ -74,165 +89,246 @@ export function useColumnSwipe({
   current,
   onChange,
   isDragging,
+  enabled,
+  getPill,
 }: {
   current: Status;
   onChange: (status: Status) => void;
+  /** A card drag is under way right now (read at touch time, so it can be a ref). */
   isDragging: () => boolean;
+  /** False while a card is being dragged: the track lies flat and the gesture is off. */
+  enabled: boolean;
+  /** The highlight pill in the tab bar, which moves with the track. */
+  getPill: () => HTMLElement | null;
 }): (el: HTMLElement | null) => void {
-  const latest = React.useRef({ current, onChange, isDragging });
-  latest.current = { current, onChange, isDragging };
+  const latest = React.useRef({ current, onChange, isDragging, enabled, getPill });
+  latest.current = { current, onChange, isDragging, enabled, getPill };
+
+  const viewport = React.useRef<HTMLElement | null>(null);
+  /** Where the carousel logically is (a fractional column index); animations run towards it. */
+  const pos = React.useRef(STATUSES.indexOf(current));
+  const animations = React.useRef<Animation[]>([]);
   const detach = React.useRef<(() => void) | null>(null);
 
-  return React.useCallback((el: HTMLElement | null) => {
-    detach.current?.();
-    detach.current = null;
-    if (!el) return;
+  const track = () => viewport.current?.firstElementChild as HTMLElement | null;
+  const isPhone = () => !window.matchMedia("(min-width: 768px)").matches;
 
-    let start: { x: number; y: number } | null = null;
-    let mode: "pending" | "swipe" | "other" = "pending";
-    let lastDx = 0;
-    let samples: { t: number; x: number }[] = [];
-    // True while a committed swipe is still settling; a new touch waits for it.
-    let settling = false;
+  /** Writes `p` to the pill and, when the carousel is live, to the track; and lights the nearest tab. */
+  const place = React.useCallback((p: number, scrubbing: boolean, lit: number = p) => {
+    const pill = latest.current.getPill();
+    const t = track();
+    if (pill) {
+      pill.style.transform = pillTransform(p);
+      const group = pill.parentElement;
+      if (group) {
+        if (scrubbing) group.setAttribute("data-scrubbing", "true");
+        else group.removeAttribute("data-scrubbing");
+        const nearest = Math.round(Math.min(Math.max(lit, 0), LAST));
+        group.querySelectorAll<HTMLElement>("[data-column-tab]").forEach((tab, i) => {
+          if (i === nearest) tab.setAttribute("data-lit", "true");
+          else tab.removeAttribute("data-lit");
+        });
+      }
+    }
+    if (t) t.style.transform = latest.current.enabled ? trackTransform(p) : "";
+  }, []);
 
-    const now = (event: TouchEvent) => (event.timeStamp > 0 ? event.timeStamp : Date.now());
-    const velocity = (): number => {
-      const last = samples[samples.length - 1];
-      if (!last) return 0;
-      const first = samples.find((s) => last.t - s.t <= VELOCITY_WINDOW_MS);
-      if (!first || last.t <= first.t) return 0;
-      return (last.x - first.x) / (last.t - first.t);
-    };
-    const shownColumn = () => el.querySelector<HTMLElement>(":scope > :not(.hidden)");
-    const reset = (col: HTMLElement | null) => {
-      if (!col) return;
-      col.style.transition = "";
-      col.style.transform = "";
-      col.style.opacity = "";
-    };
+  const stopAnimations = React.useCallback(() => {
+    animations.current.forEach((a) => {
+      a.onfinish = null;
+      a.oncancel = null;
+      a.cancel();
+    });
+    animations.current = [];
+  }, []);
 
-    const onTouchStart = (event: TouchEvent) => {
-      start = null;
-      if (settling || event.touches.length !== 1 || window.matchMedia("(min-width: 768px)").matches) return;
-      if (latest.current.isDragging() || startsInsideNoSwipe(event.target)) return;
-      const touch = event.touches[0]!;
-      if (touch.clientX < EDGE_PX || touch.clientX > window.innerWidth - EDGE_PX) return;
-      start = { x: touch.clientX, y: touch.clientY };
-      mode = "pending";
-      lastDx = 0;
-      samples = [{ t: now(event), x: touch.clientX }];
-    };
+  /** Where the carousel visibly is right now, mid-animation included. */
+  const visiblePos = React.useCallback((): number => {
+    const t = track();
+    const v = viewport.current;
+    if (!t || !v || animations.current.length === 0) return pos.current;
+    const base = v.getBoundingClientRect().left + parseFloat(getComputedStyle(v).paddingLeft);
+    const step = t.offsetWidth + GAP_PX;
+    return step > 0 ? (base - t.getBoundingClientRect().left) / step : pos.current;
+  }, []);
 
-    const onTouchMove = (event: TouchEvent) => {
-      if (!start) return;
-      if (latest.current.isDragging()) {
-        if (mode === "swipe") reset(shownColumn());
-        start = null;
+  /** Slide the pill (and the track, when live) from where they are to `to`. */
+  const settle = React.useCallback(
+    (to: number, ms: number, after?: () => void) => {
+      const t = track();
+      const pill = latest.current.getPill();
+      const from = visiblePos();
+      stopAnimations();
+      pos.current = to;
+      if (ms <= 0 || from === to || typeof (t ?? pill)?.animate !== "function") {
+        place(to, false);
+        after?.();
         return;
       }
-      const touch = event.touches[0]!;
-      const dx = touch.clientX - start.x;
-      const dy = touch.clientY - start.y;
-      if (mode === "pending") {
-        if (Math.abs(dy) > 8 && Math.abs(dy) >= Math.abs(dx)) {
-          mode = "other";
+      // The label it is heading for turns dark as it sets off, not when it arrives.
+      place(from, true, to);
+      const run: Animation[] = [];
+      const options = { duration: ms, easing: SETTLE_EASING, fill: "forwards" as const };
+      if (t && latest.current.enabled) {
+        run.push(t.animate([{ transform: trackTransform(from) }, { transform: trackTransform(to) }], options));
+      }
+      if (pill) run.push(pill.animate([{ transform: pillTransform(from) }, { transform: pillTransform(to) }], options));
+      animations.current = run;
+      const first = run[0];
+      if (!first) {
+        place(to, false);
+        after?.();
+        return;
+      }
+      first.onfinish = () => {
+        // Land the real styles first, then drop the animations, so nothing flickers.
+        place(to, false);
+        stopAnimations();
+        after?.();
+      };
+    },
+    [place, stopAnimations, visiblePos],
+  );
+
+  // Something other than a swipe moved the column (a tab tap, a card dragged to
+  // a tab), or the carousel was switched on or off: bring the pill and track along.
+  const index = STATUSES.indexOf(current);
+  React.useLayoutEffect(() => {
+    if (!isPhone()) {
+      stopAnimations();
+      const t = track();
+      if (t) t.style.transform = "";
+      return;
+    }
+    if (pos.current === index) {
+      place(index, false);
+      return;
+    }
+    // Instant while a card is held: drag-and-drop re-measures on its own schedule.
+    settle(index, enabled ? PROGRAMMATIC_MS : 0);
+  }, [index, enabled, place, settle, stopAnimations]);
+
+  // Rotating the phone or resizing across the md line.
+  React.useEffect(() => {
+    const query = window.matchMedia("(min-width: 768px)");
+    const onChange = () => {
+      stopAnimations();
+      if (query.matches) {
+        const t = track();
+        if (t) t.style.transform = "";
+        latest.current.getPill()?.style.removeProperty("transform");
+      } else {
+        place(STATUSES.indexOf(latest.current.current), false);
+      }
+    };
+    query.addEventListener("change", onChange);
+    return () => query.removeEventListener("change", onChange);
+  }, [place, stopAnimations]);
+
+  return React.useCallback(
+    (el: HTMLElement | null) => {
+      detach.current?.();
+      detach.current = null;
+      viewport.current = el;
+      if (!el) return;
+
+      let start: { x: number; y: number } | null = null;
+      let mode: "pending" | "swipe" | "other" = "pending";
+      let basePos = 0;
+      let stepPx = 1;
+      let dragPos = 0;
+      let samples: { t: number; x: number }[] = [];
+
+      const now = (event: TouchEvent) => (event.timeStamp > 0 ? event.timeStamp : Date.now());
+      const velocity = (): number => {
+        const last = samples[samples.length - 1];
+        if (!last) return 0;
+        const first = samples.find((s) => last.t - s.t <= VELOCITY_WINDOW_MS);
+        if (!first || last.t <= first.t) return 0;
+        return (last.x - first.x) / (last.t - first.t);
+      };
+
+      const onTouchStart = (event: TouchEvent) => {
+        start = null;
+        const live = latest.current;
+        // A settle in progress finishes first; its last frames are too short to be worth catching.
+        if (animations.current.length > 0) return;
+        if (!live.enabled || event.touches.length !== 1 || !isPhone()) return;
+        if (live.isDragging() || startsInsideNoSwipe(event.target)) return;
+        const touch = event.touches[0]!;
+        if (touch.clientX < EDGE_PX || touch.clientX > window.innerWidth - EDGE_PX) return;
+        const t = track();
+        if (!t) return;
+        basePos = pos.current;
+        stepPx = t.offsetWidth + GAP_PX;
+        dragPos = basePos;
+        start = { x: touch.clientX, y: touch.clientY };
+        mode = "pending";
+        samples = [{ t: now(event), x: touch.clientX }];
+      };
+
+      const onTouchMove = (event: TouchEvent) => {
+        if (!start) return;
+        if (latest.current.isDragging() || !latest.current.enabled) {
+          if (mode === "swipe") settle(Math.round(pos.current), 0);
+          start = null;
           return;
         }
-        if (Math.abs(dx) < ARM_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
-        mode = "swipe";
-      }
-      if (mode !== "swipe") return;
-      event.preventDefault();
-      samples.push({ t: now(event), x: touch.clientX });
-      if (samples.length > 20) samples = samples.slice(-20);
-      const at = STATUSES.indexOf(latest.current.current);
-      const pastEnd = (dx > 0 && at === 0) || (dx < 0 && at === STATUSES.length - 1);
-      lastDx = dx;
-      const col = shownColumn();
-      if (col) {
-        col.style.transition = "none";
-        // Resistance where there is no column to go to, so it still feels alive.
-        col.style.transform = `translateX(${pastEnd ? dx / 4 : dx}px)`;
-      }
-    };
-
-    const onTouchEnd = () => {
-      if (!start) return;
-      const wasSwipe = mode === "swipe";
-      const dx = lastDx;
-      const vx = wasSwipe ? velocity() : 0;
-      start = null;
-      mode = "pending";
-      if (!wasSwipe) return;
-      const col = shownColumn();
-      const target = latest.current.isDragging() ? null : columnAfterSwipe(latest.current.current, dx, vx);
-      if (!target) {
-        if (col) {
-          col.style.transition = `transform 180ms ${EASING}`;
-          col.style.transform = "translateX(0)";
-          col.addEventListener("transitionend", () => reset(col), { once: true });
+        const touch = event.touches[0]!;
+        const dx = touch.clientX - start.x;
+        const dy = touch.clientY - start.y;
+        if (mode === "pending") {
+          if (Math.abs(dy) > 8 && Math.abs(dy) >= Math.abs(dx)) {
+            mode = "other";
+            return;
+          }
+          if (Math.abs(dx) < ARM_PX || Math.abs(dx) < Math.abs(dy) * 1.5) return;
+          mode = "swipe";
         }
-        return;
-      }
-      if (!col || typeof col.animate !== "function") {
-        reset(col);
-        latest.current.onChange(target);
-        return;
-      }
-      // Carry on from where the finger let go: the column keeps travelling the
-      // way it was going, at the speed it was going, then the next one eases in
-      // from the opposite side.
-      const width = Math.max(el.clientWidth, 1);
-      const dir = dx < 0 ? -1 : 1;
-      const travel = width * LEAVE_TRAVEL;
-      const time = settleDurations(travel, vx);
-      settling = true;
-      col.style.transition = "none";
-      col.style.transform = "";
-      const leave = col.animate(
-        [
-          { transform: `translateX(${dx}px)`, opacity: 1 },
-          { transform: `translateX(${dx + dir * travel}px)`, opacity: 0 },
-        ],
-        { duration: time.out, easing: LEAVE_EASING, fill: "forwards" },
-      );
-      leave.onfinish = () => {
-        // Switched synchronously, so the arriving column is never painted
-        // at rest for a frame before it starts to move.
-        flushSync(() => latest.current.onChange(target));
-        leave.cancel();
-        reset(col);
-        const next = shownColumn();
-        if (next && typeof next.animate === "function") {
-          const arrive = next.animate(
-            [
-              { transform: `translateX(${-dir * width * 0.45}px)`, opacity: 0 },
-              { transform: "translateX(0)", opacity: 1 },
-            ],
-            { duration: time.in, easing: EASING },
-          );
-          arrive.onfinish = arrive.oncancel = () => {
-            settling = false;
-          };
-        } else {
-          settling = false;
-        }
+        if (mode !== "swipe") return;
+        event.preventDefault();
+        samples.push({ t: now(event), x: touch.clientX });
+        if (samples.length > 20) samples = samples.slice(-20);
+        dragPos = basePos - dx / stepPx;
+        place(rubberBand(dragPos), true);
       };
-      leave.oncancel = () => {
-        settling = false;
-      };
-    };
 
-    el.addEventListener("touchstart", onTouchStart, { passive: true });
-    // Not passive: once the gesture is a swipe, the column must not also scroll.
-    el.addEventListener("touchmove", onTouchMove, { passive: false });
-    el.addEventListener("touchend", onTouchEnd);
-    el.addEventListener("touchcancel", onTouchEnd);
-    detach.current = () => {
-      el.removeEventListener("touchstart", onTouchStart);
-      el.removeEventListener("touchmove", onTouchMove);
-      el.removeEventListener("touchend", onTouchEnd);
-      el.removeEventListener("touchcancel", onTouchEnd);
-    };
-  }, []);
+      const onTouchEnd = () => {
+        if (!start) return;
+        const wasSwipe = mode === "swipe";
+        const fingerPos = dragPos;
+        const vx = wasSwipe ? velocity() : 0;
+        start = null;
+        mode = "pending";
+        if (!wasSwipe) return;
+
+        const from = Math.round(basePos);
+        const dx = (basePos - fingerPos) * stepPx; // finger travel in px; negative = leftwards
+        const target = latest.current.isDragging() ? null : columnAfterSwipe(STATUSES[from] ?? "TODO", dx, vx);
+        const to = target ? STATUSES.indexOf(target) : from;
+        const shown = rubberBand(fingerPos);
+        // Pick up from where the finger let go: rewrite the transform to the same place, then animate on.
+        pos.current = shown;
+        const ms = carouselSettleMs(Math.abs(to - shown) * stepPx, vx);
+        settle(to, ms, () => {
+          // The animation is over and the styles are at `to`; now tell React, synchronously,
+          // so the new column is current before anything is painted again.
+          if (target) flushSync(() => latest.current.onChange(target));
+        });
+      };
+
+      el.addEventListener("touchstart", onTouchStart, { passive: true });
+      // Not passive: once the gesture is a swipe, the column must not also scroll.
+      el.addEventListener("touchmove", onTouchMove, { passive: false });
+      el.addEventListener("touchend", onTouchEnd);
+      el.addEventListener("touchcancel", onTouchEnd);
+      detach.current = () => {
+        el.removeEventListener("touchstart", onTouchStart);
+        el.removeEventListener("touchmove", onTouchMove);
+        el.removeEventListener("touchend", onTouchEnd);
+        el.removeEventListener("touchcancel", onTouchEnd);
+      };
+    },
+    [place, settle],
+  );
 }

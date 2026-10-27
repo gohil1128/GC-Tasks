@@ -86,6 +86,7 @@ import { DraggedCard } from "./task-card";
 import { REFRESH_EVENT, type RefreshEventDetail } from "@/components/shell/pull-to-refresh";
 import { useBoardSync } from "./use-board-sync";
 import { useColumnSwipe } from "./use-column-swipe";
+import { useIsPhone } from "./use-is-phone";
 
 // ── Drag set-up ─────────────────────────────────────────────────────────────
 
@@ -268,11 +269,16 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
     return () => document.body.removeAttribute("data-board-dragging");
   }, [drag]);
 
-  // Phone: swipe sideways between columns; stands down while a card is being dragged.
+  // Phone: the columns sit side by side on a track that follows a sideways swipe; the pill in
+  // the tab bar moves with it. While a card is held the track lies flat (see use-column-swipe).
+  const tabPillRef = React.useRef<HTMLSpanElement | null>(null);
+  const phone = useIsPhone();
   const columnSwipeRef = useColumnSwipe({
     current: mobileColumn,
     onChange: setMobileColumn,
     isDragging: () => dragRef.current !== null,
+    enabled: drag === null,
+    getPill: () => tabPillRef.current,
   });
   const lastOverId = React.useRef<UniqueIdentifier | null>(null);
   const recentlyMovedColumn = React.useRef(false);
@@ -826,6 +832,7 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
               targets; DndContext renders no wrapper, so the layout is unchanged. */}
           <ColumnTabs
             active={mobileColumn}
+            pillRef={tabPillRef}
             counts={{
               TODO: visibleColumns.TODO.length,
               IN_PROGRESS: visibleColumns.IN_PROGRESS.length,
@@ -833,28 +840,32 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
             }}
             onChange={setMobileColumn}
           />
+          {/* The viewport clips the track on a phone; from md up it is just padding around the grid. */}
           <div
             ref={columnSwipeRef}
-            className="flex min-h-0 flex-1 flex-col gap-4 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:grid md:grid-cols-3 md:grid-rows-[minmax(0,1fr)] md:pb-6"
+            className="flex min-h-0 flex-1 flex-col overflow-x-clip px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:pb-6"
           >
-            {STATUSES.map((status) => (
-              <BoardColumn
-                key={status}
-                status={status}
-                cards={visibleColumns[status]}
-                total={totals[status]}
-                filtering={filtering}
-                shown={mobileColumn === status}
-                highlighted={drag !== null && previewStatus === status && drag.origin !== status}
-                dragging={drag !== null}
-                canCreate={canCreate}
-                quickAddOpen={quickAddColumn === status}
-                onQuickAddOpenChange={(open) => openQuickAdd(status, open)}
-                onAdd={quickAdd}
-                quickAddRef={status === "TODO" ? todoAddRef : undefined}
-                headerMenu={status === "DONE" ? doneMenu : undefined}
-              />
-            ))}
+            <div className="flex min-h-0 flex-1 gap-4 will-change-transform md:grid md:grid-cols-3 md:grid-rows-[minmax(0,1fr)] md:will-change-auto">
+              {STATUSES.map((status) => (
+                <BoardColumn
+                  key={status}
+                  status={status}
+                  cards={visibleColumns[status]}
+                  total={totals[status]}
+                  filtering={filtering}
+                  shown={mobileColumn === status}
+                  offscreen={phone && drag === null && mobileColumn !== status}
+                  highlighted={drag !== null && previewStatus === status && drag.origin !== status}
+                  dragging={drag !== null}
+                  canCreate={canCreate}
+                  quickAddOpen={quickAddColumn === status}
+                  onQuickAddOpenChange={(open) => openQuickAdd(status, open)}
+                  onAdd={quickAdd}
+                  quickAddRef={status === "TODO" ? todoAddRef : undefined}
+                  headerMenu={status === "DONE" ? doneMenu : undefined}
+                />
+              ))}
+            </div>
           </div>
           <DragOverlay dropAnimation={DROP_ANIMATION}>
             {activeCard ? <DraggedCard card={activeCard} /> : null}

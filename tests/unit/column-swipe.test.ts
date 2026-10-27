@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { columnAfterSwipe, settleDurations } from "@/components/board/use-column-swipe";
+import { carouselSettleMs, columnAfterSwipe, rubberBand } from "@/components/board/use-column-swipe";
 
 describe("columnAfterSwipe", () => {
   it("goes to the next column on a long swipe left, the previous on a swipe right", () => {
@@ -25,25 +25,31 @@ describe("columnAfterSwipe", () => {
   });
 });
 
-describe("settleDurations", () => {
+describe("carouselSettleMs", () => {
   it("finishes quicker after a harder flick", () => {
-    const slow = settleDurations(140, 0.3);
-    const fast = settleDurations(140, 2.5);
-    expect(fast.out).toBeLessThan(slow.out);
-    expect(fast.in).toBeLessThanOrEqual(slow.in);
+    expect(carouselSettleMs(300, 2.5)).toBeLessThan(carouselSettleMs(300, 0.3));
   });
 
   it("covers a short distance quicker than a long one at the same speed", () => {
-    expect(settleDurations(60, 1).out).toBeLessThan(settleDurations(160, 1).out);
+    expect(carouselSettleMs(80, 1)).toBeLessThan(carouselSettleMs(320, 1));
   });
 
   it("stays within a range that never feels abrupt or sluggish", () => {
-    for (const [px, v] of [[0, 5], [400, 0], [400, 0.05], [10, -3]] as const) {
-      const t = settleDurations(px, v);
-      expect(t.out).toBeGreaterThanOrEqual(70);
-      expect(t.out).toBeLessThanOrEqual(220);
-      expect(t.in).toBeGreaterThanOrEqual(150);
-      expect(t.in).toBeLessThanOrEqual(280);
+    for (const [px, v] of [[0, 5], [390, 0], [390, 0.05], [10, -3], [5_000, 0]] as const) {
+      const ms = carouselSettleMs(px, v);
+      expect(ms).toBeGreaterThanOrEqual(140);
+      expect(ms).toBeLessThanOrEqual(360);
     }
+  });
+});
+
+describe("rubberBand", () => {
+  it("leaves positions between the first and last column alone", () => {
+    for (const p of [0, 0.4, 1, 1.5, 2]) expect(rubberBand(p)).toBe(p);
+  });
+
+  it("gives only a quarter as far past either end", () => {
+    expect(rubberBand(-1)).toBeCloseTo(-0.25);
+    expect(rubberBand(3)).toBeCloseTo(2.25);
   });
 });

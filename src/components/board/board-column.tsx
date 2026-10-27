@@ -39,9 +39,13 @@ export function columnElementId(status: Status): string {
   target, so a card can be dropped into an empty column or below the last
   card without having to aim at another card.
 
-  On phones only the selected column is shown (`shown`); the others are
-  hidden from md down rather than unmounted, so a drag in progress keeps the
-  same droppables everywhere.
+  On a phone the three columns sit side by side on a track that slides (see
+  use-column-swipe.ts), each one a full screen wide, so the next column is
+  already in place as a swipe brings it into view. The ones off screen are
+  `offscreen`: inert, so they can't be tabbed into or read out. While a card
+  is being held the track lies flat and only the selected column (`shown`) is
+  displayed — the others are hidden rather than unmounted, so a drag keeps the
+  same droppables everywhere, and re-measures them when it switches column.
 */
 export function BoardColumn({
   status,
@@ -49,6 +53,7 @@ export function BoardColumn({
   total,
   filtering,
   shown,
+  offscreen,
   highlighted,
   dragging,
   canCreate,
@@ -65,6 +70,8 @@ export function BoardColumn({
   total: number;
   filtering: boolean;
   shown: boolean;
+  /** Phone only: this column is waiting off screen on the track. */
+  offscreen: boolean;
   /** A dragged card is currently previewed in this column. */
   highlighted: boolean;
   dragging: boolean;
@@ -91,9 +98,10 @@ export function BoardColumn({
       id={columnElementId(status)}
       role="region"
       aria-label={label}
+      inert={offscreen || undefined}
       className={cn(
-        "min-h-0 flex-1 flex-col rounded-2xl bg-column ring-inset transition-shadow md:flex",
-        shown ? "flex" : "hidden",
+        "flex min-h-0 w-full shrink-0 flex-col rounded-2xl bg-column ring-inset transition-shadow md:w-auto md:shrink",
+        dragging && !shown && "hidden md:flex",
         highlighted && "ring-2 ring-brand/40",
       )}
     >

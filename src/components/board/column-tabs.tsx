@@ -9,6 +9,11 @@ import { columnElementId, tabDroppableId } from "./board-column";
   here or by swiping sideways across the column (see ./use-column-swipe.ts).
   Hidden from md up, where all three columns fit.
 
+  The highlight is a pill of its own that slides under the tabs: the swipe
+  moves it in step with the finger and it glides to the new tab on release,
+  rather than the highlight jumping from one tab to the next. Which label is
+  dark follows it (data-lit, set while a swipe is under way).
+
   Each tab is also a drop target: press-and-hold a card, drag it onto another
   column's tab, and the board switches to that column so the card can be
   dropped exactly where it belongs (or dropped straight onto the tab to send
@@ -18,14 +23,24 @@ export function ColumnTabs({
   active,
   counts,
   onChange,
+  pillRef,
 }: {
   active: Status;
   counts: Record<Status, number>;
   onChange: (status: Status) => void;
+  /** The sliding highlight, moved by the column swipe. */
+  pillRef: React.Ref<HTMLSpanElement>;
 }) {
   return (
     <div className="shrink-0 px-4 pb-3 md:hidden">
-      <div role="group" aria-label="Column" className="grid grid-cols-3 gap-1 rounded-full bg-column p-1">
+      <div role="group" aria-label="Column" className="group relative grid grid-cols-3 gap-1 rounded-full bg-column p-1">
+        <span
+          ref={pillRef}
+          aria-hidden
+          data-column-pill
+          className="absolute bottom-1 left-1 top-1 w-[calc((100%-1rem)/3)] rounded-full bg-card shadow-card"
+          style={{ transform: `translateX(calc(${STATUSES.indexOf(active) * 100}% + ${STATUSES.indexOf(active) * 4}px))` }}
+        />
         {STATUSES.map((s) => (
           <ColumnTab key={s} status={s} selected={s === active} count={counts[s]} onChange={onChange} />
         ))}
@@ -55,11 +70,14 @@ function ColumnTab({
       type="button"
       aria-pressed={selected}
       aria-controls={columnElementId(status)}
+      data-column-tab
       onClick={() => onChange(status)}
       className={cn(
-        "flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-semibold transition-colors",
+        "relative z-10 flex h-9 min-w-0 items-center justify-center gap-1.5 rounded-full px-2 text-xs font-semibold transition-colors",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
-        selected ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground",
+        selected ? "text-foreground" : "text-muted-foreground hover:text-foreground",
+        // While a swipe moves the pill, the label it is over is the dark one, not the selected tab's.
+        "group-data-[scrubbing=true]:text-muted-foreground group-data-[scrubbing=true]:data-[lit=true]:text-foreground",
         hot && "bg-brand/20 text-foreground ring-2 ring-brand/60",
       )}
     >
