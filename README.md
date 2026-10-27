@@ -1,6 +1,6 @@
 # God's Chai Tasks
 
-A shared task board for the God's Chai team. Everyone signs in with their own email and password. **Owners** have full access. **Staff** see the whole board but can change only the tasks they're working on.
+A shared task board for the God's Chai team. Everyone signs in with their own email and password. **Owners** have full access. **Staff** see unassigned tasks and the tasks other staff are on, but not the tasks owners are working on (unless they're on them too), and can change only the tasks they're working on.
 
 The board has three columns: **To do → In progress → Done**. Drag a card to move it. Each card shows who is working on it, plus its labels, priority, due date, checklist progress and comment count. Click a card to open it. From there you can edit it, assign people, tick off checklist items, leave comments and see its history.
 
@@ -10,8 +10,8 @@ This app is separate from God's Chai Operations. It has its own database, its ow
 
 | | Owner | Staff |
 |---|---|---|
-| See the whole board, open any task | ✓ | ✓ |
-| Comment on any task | ✓ | ✓ |
+| See and open tasks | ✓ every task | unassigned tasks, tasks other staff are on, and any task they're on — not tasks an owner is on, unless they're on them too |
+| Comment on any task they can see | ✓ | ✓ |
 | Edit or delete their own comments | ✓ | ✓ |
 | Pick up an unclaimed task ("I'll take this") | ✓ | ✓ (only if it isn't done yet) |
 | Move a task between columns | ✓ any task | only tasks they're on |
@@ -25,7 +25,7 @@ This app is separate from God's Chai Operations. It has its own database, its ow
 | Ideas: edit or delete their own ideas and replies | ✓ | ✓ |
 | Ideas: delete anyone's idea or reply | ✓ | — |
 
-These rules live in one place, `src/lib/permissions.ts`. The server enforces them on every change. The browser uses the same rules to hide buttons a staff member can't use.
+These rules live in one place, `src/lib/permissions.ts`. The server enforces them on every read and every change: a task hidden from a staff member is left off their board, archive and notifications, and opening or changing it answers as if it didn't exist. Who counts as an owner is their role right now, so promoting or demoting someone changes what staff see straight away. The browser uses the same rules to hide buttons a staff member can't use.
 
 ## Features
 

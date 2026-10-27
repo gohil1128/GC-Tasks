@@ -2,6 +2,8 @@ import { after } from "next/server";
 import webpush from "web-push";
 import { prisma } from "@/lib/prisma";
 import { APP_SHORT_NAME } from "@/lib/brand";
+import { canSeeTask, type Actor } from "@/lib/permissions";
+import { toVisibility, visibilitySelect } from "@/modules/tasks/visibility";
 import type { PendingActivity } from "@/modules/notifications/context";
 import {
   notificationText,
@@ -19,6 +21,10 @@ import {
   built from the group's most newsworthy entry (see text.ts). A bulk
   "archive everything in Done" is the one exception: it collapses into a
   single summary push instead of one per task.
+
+  Nobody is told about a task they cannot see (canSeeTask), judged as the
+  task stands after the write — so assigning an owner to a task tells the
+  staff who are not on it nothing, not even that.
 
   Push is best-effort by design. If the VAPID keys are not configured the
   bell still works and this quietly does nothing; a dead subscription
@@ -87,42 +93,57 @@ export async function dispatchActivityNotifications(entries: PendingActivity[]):
     const taskIds = [...new Set(entries.map((e) => e.taskId))];
     const actorIds = [...new Set(entries.map((e) => e.actorId))];
     const [tasks, people, recipients] = await Promise.all([
-      prisma.task.findMany({ where: { id: { in: taskIds } }, select: { id: true, title: true } }),
+      prisma.task.findMany({ where: { id: { in: taskIds } }, select: { id: true, title: true, ...visibilitySelect } }),
       prisma.user.findMany({ select: { id: true, name: true } }),
-      prisma.user.findMany({ where: { active: true }, select: { id: true } }),
+      prisma.user.findMany({ where: { active: true }, select: { id: true, role: true } }),
     ]);
     const titleOf = new Map(tasks.map((t) => [t.id, t.title]));
+    const visibilityOf = new Map(tasks.map((t) => [t.id, toVisibility(t)]));
     const nameOf = (id: string) => people.find((p) => p.id === id)?.name ?? "Someone";
-    const recipientIds = recipients.map((r) => r.id).filter((id) => !actorIds.includes(id));
-    if (recipientIds.length === 0) return;
+    // A task deleted since the write is nobody's news.
+    const sees = (who: Actor, taskId: string) => {
+      const task = visibilityOf.get(taskId);
+      return task !== undefined && canSeeTask(who, task);
+    };
+    const audience = recipients.filter((r) => !actorIds.includes(r.id));
+    if (audience.length === 0) return;
 
     const now = new Date();
     const bulkArchive =
       groups.size > 1 && entries.every((e) => e.type === "archived");
-    const payloads: Payload[] = bulkArchive
-      ? [
-          {
-            body: `${nameOf(entries[0]!.actorId)} archived ${taskIds.length} completed tasks`,
-            tag: "bulk-archive",
-            url: "/",
-          },
-        ]
-      : [...groups.values()].map((group) => {
-          const entry = pickPushEntry(group);
-          const taskId = entry.taskId;
-          return {
-            body: notificationText(
-              nameOf(entry.actorId),
-              pendingToDTO(entry, now),
-              titleOf.get(taskId) ?? "a task",
-              nameOf,
-            ),
-            tag: taskId,
-            url: `/?task=${taskId}`,
-          };
-        });
+    const perTask = [...groups.values()].map((group) => {
+      const entry = pickPushEntry(group);
+      const taskId = entry.taskId;
+      return {
+        taskId,
+        payload: {
+          body: notificationText(
+            nameOf(entry.actorId),
+            pendingToDTO(entry, now),
+            titleOf.get(taskId) ?? "a task",
+            nameOf,
+          ),
+          tag: taskId,
+          url: `/?task=${taskId}`,
+        },
+      };
+    });
 
-    await sendPushes(recipientIds, payloads);
+    /** What one person is sent: only what they can see, and a bulk archive counts only those. */
+    function payloadsFor(who: Actor): Payload[] {
+      if (bulkArchive) {
+        const count = taskIds.filter((id) => sees(who, id)).length;
+        if (count === 0) return [];
+        const body =
+          count === 1
+            ? `${nameOf(entries[0]!.actorId)} archived 1 completed task`
+            : `${nameOf(entries[0]!.actorId)} archived ${count} completed tasks`;
+        return [{ body, tag: "bulk-archive", url: "/" }];
+      }
+      return perTask.filter((p) => sees(who, p.taskId)).map((p) => p.payload);
+    }
+
+    await Promise.all(audience.map((who) => sendPushes([who.id], payloadsFor(who))));
   } catch (err) {
     console.error("push dispatch failed", err);
   }

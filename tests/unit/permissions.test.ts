@@ -12,6 +12,7 @@ import {
   canManageSignups,
   canManageTeam,
   canMoveTask,
+  canSeeTask,
   canWorkChecklist,
   canDeleteIdea,
   canEditIdea,
@@ -143,5 +144,38 @@ describe("ideas", () => {
       expect(canDeleteIdea(actor, gone)).toBe(false);
       expect(canVoteIdea(actor, gone)).toBe(false);
     }
+  });
+});
+
+describe("who sees a task", () => {
+  const on = (...people: Array<[string, "OWNER" | "STAFF"]>) => ({
+    assignees: people.map(([id, role]) => ({ id, role })),
+  });
+
+  it("shows owners every task", () => {
+    expect(canSeeTask(owner, on())).toBe(true);
+    expect(canSeeTask(owner, on(["o2", "OWNER"]))).toBe(true);
+    expect(canSeeTask(owner, on(["s2", "STAFF"]))).toBe(true);
+  });
+
+  it("shows staff unclaimed tasks and tasks only staff are on", () => {
+    expect(canSeeTask(staff, on())).toBe(true);
+    expect(canSeeTask(staff, on(["s2", "STAFF"]))).toBe(true);
+    expect(canSeeTask(staff, on(["s2", "STAFF"], ["s3", "STAFF"]))).toBe(true);
+  });
+
+  it("hides from staff a task any owner is on", () => {
+    expect(canSeeTask(staff, on(["o1", "OWNER"]))).toBe(false);
+    expect(canSeeTask(staff, on(["s2", "STAFF"], ["o1", "OWNER"]))).toBe(false);
+  });
+
+  it("shows staff a task they are on, owners or not", () => {
+    expect(canSeeTask(staff, on(["s1", "STAFF"]))).toBe(true);
+    expect(canSeeTask(staff, on(["o1", "OWNER"], ["s1", "STAFF"]))).toBe(true);
+  });
+
+  it("goes by the role it is given, so a demoted owner's tasks show", () => {
+    expect(canSeeTask(staff, on(["o1", "STAFF"]))).toBe(true);
+    expect(canSeeTask(staff, on(["s2", "OWNER"]))).toBe(false);
   });
 });

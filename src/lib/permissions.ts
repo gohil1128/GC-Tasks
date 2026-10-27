@@ -5,13 +5,15 @@
   manage labels, and manage the team (including whether people may sign
   themselves up).
 
-  Staff see the whole board, so they know what everyone is on, but they only
-  WORK it. They can:
+  Staff see the tasks nobody has claimed and the tasks other staff are on,
+  but not what the owners are working on: a task with an owner among its
+  assignees is hidden from them unless they are on it too (canSeeTask).
+  What they can see, they only WORK. They can:
     - move a task they are assigned to (To do → In progress → Done),
     - tick, add, rename and remove checklist items on a task they are on,
     - pick up an unclaimed task ("I'll take this") that is not already done,
       and step off a task they are on,
-    - comment on any task, and edit or delete their own comments.
+    - comment on any task they can see, and edit or delete their own comments.
   They cannot create, retitle, re-prioritise, re-date, re-label, reassign,
   archive or delete tasks, and cannot touch labels or the team.
 
@@ -36,7 +38,7 @@ export const ROLE_LABEL: Record<Role, string> = {
 
 export const ROLE_DESCRIPTION: Record<Role, string> = {
   OWNER: "Full access: creates, edits, assigns and deletes tasks, and manages labels and the team.",
-  STAFF: "Sees the whole board. Moves and updates the tasks they're on, picks up unclaimed tasks, and comments.",
+  STAFF: "Sees unclaimed tasks and what other staff are on, not what owners are working on. Moves and updates the tasks they're on, picks up unclaimed tasks, and comments.",
 };
 
 export function isRole(value: string): value is Role {
@@ -58,6 +60,23 @@ export function isOwner(actor: Actor): boolean {
 
 function isOn(actor: Actor, task: TaskAccess): boolean {
   return task.assigneeIds.includes(actor.id);
+}
+
+/** The people on a task, with each one's role as it stands NOW. */
+export type TaskVisibility = { assignees: Array<{ id: string; role: Role }> };
+
+/**
+  Owners see everything. Staff see a task they are on, or one with no owner
+  on it — unclaimed work stays visible so they can pick it up. The role is
+  the assignee's current one, so demoting an owner reveals their tasks.
+
+  The same rule as a database filter is visibleTaskWhere() in
+  modules/tasks/visibility.ts; the two must agree.
+*/
+export function canSeeTask(actor: Actor, task: TaskVisibility): boolean {
+  if (isOwner(actor)) return true;
+  if (task.assignees.some((a) => a.id === actor.id)) return true;
+  return !task.assignees.some((a) => a.role === "OWNER");
 }
 
 export function canCreateTask(actor: Actor): boolean {

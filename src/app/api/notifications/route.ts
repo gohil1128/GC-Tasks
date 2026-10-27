@@ -6,5 +6,5 @@ import { getNotificationFeed } from "@/modules/notifications/queries";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  return withUser(async (me) => json(await getNotificationFeed(me.id), 200));
+  return withUser(async (me) => json(await getNotificationFeed({ id: me.id, role: me.role }), 200));
 }

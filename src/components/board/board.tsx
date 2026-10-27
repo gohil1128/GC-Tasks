@@ -241,13 +241,18 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
   const membersById = React.useMemo(() => new Map(board.members.map((m) => [m.id, m])), [board.members]);
   const labelsById = React.useMemo(() => new Map(board.labels.map((l) => [l.id, l])), [board.labels]);
   // The people worth offering in the filter: anyone active, plus anyone
-  // deactivated who is still on a card. The viewer is "My tasks".
+  // deactivated who is still on a card. The viewer is "My tasks". Staff are
+  // not offered owners: the owners' tasks are hidden from them, so the chip
+  // could only ever show the few they share — or nothing.
   const filterMembers = React.useMemo(
     () =>
       board.members.filter(
-        (m) => m.id !== actor.id && (m.active || board.tasks.some((t) => t.assigneeIds.includes(m.id))),
+        (m) =>
+          m.id !== actor.id &&
+          (owner || m.role !== "OWNER") &&
+          (m.active || board.tasks.some((t) => t.assigneeIds.includes(m.id))),
       ),
-    [board.members, board.tasks, actor.id],
+    [board.members, board.tasks, actor.id, owner],
   );
 
   // What is picked, less labels and people that have since gone (see liveFilters).

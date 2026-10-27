@@ -24,6 +24,9 @@ const RUN = (process.env.DATABASE_URL ?? "").includes("test");
 
 // ── Helpers ────────────────────────────────────────────────────────────────
 
+// Reads as an owner sees them: the whole board. Staff visibility has its own suite.
+const OWNER_VIEW: Actor = { id: "owner-view", role: "OWNER" };
+
 async function resetDatabase() {
   await prisma.$executeRawUnsafe(
     `TRUNCATE "Activity", "Comment", "ChecklistItem", "TaskLabel", "TaskAssignee", "Task", "Label", "User", "BoardRevision", "LoginAttempt" CASCADE`,
@@ -58,12 +61,12 @@ const newLabel = (actor: Actor, name: string, color = "teal") =>
   labels.createLabel(actor, createLabelSchema.parse({ name, color }));
 
 async function titlesIn(status: Status): Promise<string[]> {
-  const board = await getBoard();
+  const board = await getBoard(OWNER_VIEW);
   return board.tasks.filter((t) => t.status === status).map((t) => t.title);
 }
 
 async function card(id: string): Promise<TaskCard> {
-  const board = await getBoard();
+  const board = await getBoard(OWNER_VIEW);
   const found = board.tasks.find((t) => t.id === id);
   if (!found) throw new Error(`task ${id} is not on the board`);
   return found;
@@ -174,7 +177,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       // Only the change of column was recorded, not the reorder.
       const moves = (await activityTypes(c.id)).filter((t) => t === "moved");
       expect(moves).toHaveLength(1);
-      const detail = await getTaskDetail(c.id);
+      const detail = await getTaskDetail(c.id, OWNER_VIEW);
       expect(detail?.activity.find((x) => x.type === "moved")?.detail).toEqual({ from: "TODO", to: "IN_PROGRESS" });
     });
 
@@ -203,13 +206,13 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       const inserted: string[] = [];
       for (let i = 1; i <= 40; i++) {
         const t = data(await create(owner, { title: `C${i}`, status: "DONE" }));
-        const below = (await getBoard()).tasks.filter((x) => x.status === "TODO")[1];
+        const below = (await getBoard(OWNER_VIEW)).tasks.filter((x) => x.status === "TODO")[1];
         data(await move(owner, t.id, "TODO", a.id, below.id));
         inserted.unshift(`C${i}`);
       }
 
       expect(await titlesIn("TODO")).toEqual(["A", ...inserted, "B"]);
-      const positions = (await getBoard()).tasks.filter((x) => x.status === "TODO").map((x) => x.position);
+      const positions = (await getBoard(OWNER_VIEW)).tasks.filter((x) => x.status === "TODO").map((x) => x.position);
       for (let i = 1; i < positions.length; i++) expect(positions[i]).toBeGreaterThan(positions[i - 1]);
       // A started at 0; only a rebalance renumbers it.
       expect((await card(a.id)).position).not.toBe(0);
@@ -279,7 +282,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       expect(second.current?.title).toBe("Chai order (Friday)");
       expect(second.current?.version).toBe(first.version);
       expect(second.current?.description).toBe("Original");
-      expect((await getTaskDetail(t.id))?.description).toBe("Original");
+      expect((await getTaskDetail(t.id, OWNER_VIEW))?.description).toBe("Original");
     });
 
     it("reports a vanished task as NOT_FOUND", async () => {
@@ -313,7 +316,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       expect(saved.assigneeIds).toEqual([sam.id]);
       expect(saved.labelIds).toEqual([bar.id]);
 
-      const detail = await getTaskDetail(t.id);
+      const detail = await getTaskDetail(t.id, OWNER_VIEW);
       const byType = Object.fromEntries((detail?.activity ?? []).map((a) => [a.type, a.detail]));
       expect(byType.edited).toEqual({ fields: ["title", "description"] });
       expect(byType.priority_changed).toEqual({ from: "MEDIUM", to: "URGENT" });
@@ -436,7 +439,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       expect(c.version).toBe(1);
       expect(c.updatedById).toBe(owner2.id);
 
-      const detail = await getTaskDetail(t.id);
+      const detail = await getTaskDetail(t.id, OWNER_VIEW);
       expect(detail?.checklist.map((i) => i.text)).toEqual(["One", "Two", "Three"]);
       expect(detail?.comments.map((x) => x.body)).toEqual(["First", "Second"]);
       expect(detail?.activity[0].type).toBe("commented");
@@ -475,7 +478,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       // Its own name in a different case is fine.
       const renamed = data(await labels.updateLabel(owner, updateLabelSchema.parse({ id: kitchen.id, name: "kitchen" })));
       expect(renamed.name).toBe("kitchen");
-      expect((await getBoard()).labels.map((l) => l.name)).toEqual(["Bar", "kitchen"]);
+      expect((await getBoard(OWNER_VIEW)).labels.map((l) => l.name)).toEqual(["Bar", "kitchen"]);
     });
 
     it("come off every task when deleted, while history still reads", async () => {
@@ -486,7 +489,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
 
       data(await labels.deleteLabel(owner, kitchen.id));
       expect((await card(t.id)).labelIds).toEqual([]);
-      const detail = await getTaskDetail(t.id);
+      const detail = await getTaskDetail(t.id, OWNER_VIEW);
       expect(detail?.activity.find((a) => a.type === "labels_changed")?.detail).toEqual({
         added: ["Kitchen"],
         removed: [],
@@ -503,7 +506,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       expect(await titlesIn("TODO")).toEqual(["B"]);
       data(await create(owner, { title: "C" }));
 
-      const archived = await getArchivedTasks();
+      const archived = await getArchivedTasks(OWNER_VIEW);
       expect(archived.map((x) => x.title)).toEqual(["A"]);
       expect(archived[0].archivedAt).not.toBeNull();
 
@@ -523,7 +526,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       expect(data(await svc.archiveDone(owner)).count).toBe(2);
       expect(await titlesIn("DONE")).toEqual([]);
       expect(await titlesIn("TODO")).toEqual(["Open"]);
-      const list = (await getArchivedTasks()).map((x) => x.title);
+      const list = (await getArchivedTasks(OWNER_VIEW)).map((x) => x.title);
       expect(list.at(-1)).toBe("Old");
       expect(list).toHaveLength(3);
     });
@@ -536,7 +539,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       const c = await counts();
       expect([c.tasks, c.items, c.comments, c.activity]).toEqual([0, 0, 0, 0]);
       expect(await prisma.taskAssignee.count()).toBe(0);
-      expect(await getTaskDetail(t.id)).toBeNull();
+      expect(await getTaskDetail(t.id, OWNER_VIEW)).toBeNull();
       refused(await svc.deleteTask(owner, t.id), "NOT_FOUND");
     });
   });
@@ -560,7 +563,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
   describe("board reads", () => {
     it("lists every member with their role, never a password hash or an email", async () => {
       await makeUser("Ali", "STAFF", false);
-      const board = await getBoard();
+      const board = await getBoard(OWNER_VIEW);
       expect(board.members.map((m) => m.name)).toEqual(["Ali", "Harsh", "Priya"]);
       expect(board.members[0]).toMatchObject({ role: "STAFF", active: false });
       for (const m of board.members) expect(Object.keys(m).sort()).toEqual(["active", "avatar", "color", "id", "name", "role"]);
@@ -571,8 +574,8 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       data(await create(owner, { title: "B", status: "IN_PROGRESS" }));
       data(await create(owner, { title: "C" }));
       data(await create(owner, { title: "D" }));
-      expect((await getBoard()).tasks.map((t) => t.title)).toEqual(["D", "C", "B", "A"]);
-      expect((await getBoard()).tasks.find((t) => t.id === a.id)?.status).toBe("DONE");
+      expect((await getBoard(OWNER_VIEW)).tasks.map((t) => t.title)).toEqual(["D", "C", "B", "A"]);
+      expect((await getBoard(OWNER_VIEW)).tasks.find((t) => t.id === a.id)?.status).toBe("DONE");
     });
   });
 
@@ -609,12 +612,15 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
 
     it("moves only tasks they are on", async () => {
       const unclaimed = data(await create(owner, { title: "Unclaimed" }));
+      const theirs = data(await create(owner, { title: "Theirs", assigneeIds: [other.id] }));
+      // An owner's task is hidden from staff altogether (visibility.test.ts).
       const ownersTask = data(await create(owner, { title: "Owner's", assigneeIds: [owner.id] }));
       const mine = data(await create(owner, { title: "Mine", assigneeIds: [staff.id] }));
       const before = await counts();
 
       expect(refused(await move(staff, unclaimed.id, "IN_PROGRESS"), "FORBIDDEN").error).toMatch(/Pick this task up/);
-      refused(await move(staff, ownersTask.id, "DONE"), "FORBIDDEN");
+      refused(await move(staff, theirs.id, "DONE"), "FORBIDDEN");
+      refused(await move(staff, ownersTask.id, "DONE"), "NOT_FOUND");
       expect(await counts()).toEqual(before);
       expect((await card(unclaimed.id)).status).toBe("TODO");
 
@@ -660,8 +666,8 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       expect(data(await svc.joinTask(owner, claimed.id)).assigneeIds).toEqual([other.id, owner.id]);
     });
 
-    it("comments anywhere, and deletes only their own comments", async () => {
-      const t = data(await create(owner, { title: "T", assigneeIds: [owner.id] }));
+    it("comments on any task they can see, and deletes only their own comments", async () => {
+      const t = data(await create(owner, { title: "T", assigneeIds: [other.id] }));
       const ownerComment = data(await svc.addComment(owner, { taskId: t.id, body: "From the owner" }));
       const staffComment = data(await svc.addComment(staff, { taskId: t.id, body: "From staff" }));
 
@@ -677,7 +683,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
 
     it("sees the same board an owner does", async () => {
       data(await create(owner, { title: "T", assigneeIds: [other.id] }));
-      const board = await getBoard();
+      const board = await getBoard(OWNER_VIEW);
       expect(board.tasks).toHaveLength(1);
       expect(board.members.find((m) => m.id === staff.id)?.role).toBe("STAFF");
     });
@@ -744,7 +750,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
   describe("what the board tells every account", () => {
     it("leaves out email addresses", async () => {
       await makeUser("Sam", "STAFF");
-      const board = await getBoard();
+      const board = await getBoard(OWNER_VIEW);
       expect(board.members.length).toBeGreaterThan(1);
       for (const member of board.members) expect(member).not.toHaveProperty("email");
     });

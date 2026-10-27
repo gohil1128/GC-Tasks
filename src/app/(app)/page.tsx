@@ -11,6 +11,6 @@ export const dynamic = "force-dynamic";
 export default async function BoardPage() {
   const user = await requirePageUser();
 
-  const board = await getBoard();
+  const board = await getBoard({ id: user.id, role: user.role });
   return <Board initial={board} currentUser={{ id: user.id, role: user.role }} />;
 }

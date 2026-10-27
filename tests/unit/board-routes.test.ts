@@ -14,7 +14,7 @@ vi.mock("@/modules/tasks/queries", () => ({
   getBoard: async () => ({ revision: 7, tasks: [], members: [], labels: [] }),
   getRevision: async () => 7,
   getArchivedTasks: async () => [],
-  getTaskDetail: (id: string) => getTaskDetail(id),
+  getTaskDetail: (id: string, actor: unknown) => getTaskDetail(id, actor),
 }));
 
 const board = await import("@/app/api/board/route");
@@ -65,6 +65,8 @@ describe("board read routes", () => {
     const found = await task.GET(new Request("http://x/api/tasks/t1"), params("t1"));
     expect(found.status).toBe(200);
     expect((await found.json()).title).toBe("Chai");
+    // Read as the person asking: what staff may see depends on who they are.
+    expect(getTaskDetail).toHaveBeenCalledWith("t1", { id: "u1", role: "STAFF" });
 
     getTaskDetail.mockResolvedValueOnce(null);
     expect((await task.GET(new Request("http://x"), params("gone"))).status).toBe(404);

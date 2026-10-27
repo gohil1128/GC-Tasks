@@ -21,6 +21,7 @@ import {
   canManageLabels,
   canMoveTask,
   canWorkChecklist,
+  isOwner,
 } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { createLabelAction } from "@/modules/labels/actions";
@@ -129,7 +130,7 @@ function keepsEscape(target: EventTarget | null): boolean {
   One task in full. Opens straight away from the card the board already has,
   then fills in the checklist, comments and history from the server.
 
-  Owners can change everything. Staff see everything but work only what the
+  Owners can change everything. Staff work only what the
   rules in src/lib/permissions.ts give them: the column of a task they are
   on, its checklist, picking up an unclaimed task, and comments — the rest is
   shown as plain text rather than as controls that would be refused.
@@ -260,10 +261,15 @@ function TaskDialogBody({
     [taskId, onTaskRemovedRef, closeRef],
   );
 
-  /** The task no longer exists. `quiet` when runAction has already said so. */
+  /**
+    The task no longer exists. `quiet` when runAction has already said so.
+    For staff it may instead have just been hidden (an owner was put on it),
+    and the server answers both alike, so they are told neither.
+  */
+  const goneMessage = isOwner(actor) ? "This task was deleted" : "This task isn't available any more";
   const handleGone = React.useCallback(
-    (quiet = false) => dropTask(lastRevision.current, quiet ? undefined : "This task was deleted"),
-    [dropTask],
+    (quiet = false) => dropTask(lastRevision.current, quiet ? undefined : goneMessage),
+    [dropTask, goneMessage],
   );
 
   const reloadKey = `${cardFingerprint(boardCard)}#${board.revision}`;

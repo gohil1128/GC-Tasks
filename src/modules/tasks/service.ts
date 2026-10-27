@@ -11,6 +11,7 @@ import {
   canJoinTask,
   canLeaveTask,
   canMoveTask,
+  canSeeTask,
   canWorkChecklist,
   type Actor,
   type TaskAccess,
@@ -27,6 +28,7 @@ import { insertionIndex, placeInColumn, positionBetween, rebalancedPositions } f
 import { captureActivity } from "@/modules/notifications/context";
 import { readTaskDetail } from "@/modules/tasks/queries";
 import { boardWrite, changed, refuse, unchanged } from "@/modules/tasks/revision";
+import { toVisibility, visibilitySelect } from "@/modules/tasks/visibility";
 import type {
   ActionResult,
   ActivityType,
@@ -61,6 +63,11 @@ import type {
   one the function was called with, on purpose, so every check below — the
   role-only ones (owners create, edit, archive, delete) included — runs
   against who the person is now, not who they were when the request began.
+
+  A task hidden from the actor (canSeeTask) is refused exactly as if it did
+  not exist — same code, same words — so a write cannot be used to learn
+  that it does. The owners-only writes need no such check: staff are turned
+  away from those before any task is read, hidden or not.
 */
 
 type Tx = Prisma.TransactionClient;
@@ -79,13 +86,23 @@ function fail<T>(code: ErrorCode, error: string): ActionResult<T> {
 
 // ── Shared steps ───────────────────────────────────────────────────────────
 
-/** The task as a permission sees it, read inside the transaction. */
-async function loadAccess(tx: Tx, id: string): Promise<TaskAccess & { id: string }> {
+/**
+  The task as a permission sees it, read inside the transaction. Missing, or
+  hidden from `actor`, is NOT_FOUND with `gone` — the message for whatever
+  the caller was looking for, so a hidden task's checklist item or comment
+  reads as gone in the same words as one that really is.
+*/
+async function loadAccess(
+  tx: Tx,
+  id: string,
+  actor: Actor,
+  gone: string = MSG.taskGone,
+): Promise<TaskAccess & { id: string }> {
   const row = await tx.task.findUnique({
     where: { id },
-    select: { id: true, status: true, archivedAt: true, assignees: { select: { userId: true } } },
+    select: { id: true, status: true, archivedAt: true, ...visibilitySelect },
   });
-  if (!row) refuse("NOT_FOUND", MSG.taskGone);
+  if (!row || !canSeeTask(actor, toVisibility(row))) refuse("NOT_FOUND", gone);
   return { id: row.id, status: row.status, archivedAt: row.archivedAt, assigneeIds: row.assignees.map((a) => a.userId) };
 }
 
@@ -326,7 +343,7 @@ export async function updateTask(actor: Actor, input: UpdateTaskData): Promise<A
 
   // Read after the rollback, so the dialog is shown what actually won.
   if (!result.ok && result.code === "CONFLICT") {
-    const current = await readTaskDetail(prisma, input.id);
+    const current = await readTaskDetail(prisma, input.id, actor);
     if (!current) return fail("NOT_FOUND", MSG.taskGone);
     return { ...result, current };
   }
@@ -348,16 +365,19 @@ function moveRefusal(actor: Actor, task: TaskAccess): string {
 */
 export async function moveTask(actor: Actor, input: MoveTaskData): Promise<ActionResult<TaskCard>> {
   return boardWrite(actor, async (tx, actor) => {
-    const task = await loadAccess(tx, input.id);
+    const task = await loadAccess(tx, input.id, actor);
     assertLive(task);
     if (!canMoveTask(actor, task)) refuse("FORBIDDEN", moveRefusal(actor, task));
 
     const column = await tx.task.findMany({
       where: { status: input.status, archivedAt: null, id: { not: task.id } },
-      select: { id: true, position: true },
+      select: { id: true, position: true, ...visibilitySelect },
       orderBy: [{ position: "asc" }, { id: "asc" }],
     });
-    const index = insertionIndex(column, input.afterId, input.beforeId);
+    // A hidden card cannot be named as a neighbour: it reads as a stale one,
+    // or where the card landed would say whether the hidden task exists.
+    const named = column.map((c) => ({ id: canSeeTask(actor, toVisibility(c)) ? c.id : "" }));
+    const index = insertionIndex(named, input.afterId, input.beforeId);
     const { position, rebalance } = placeInColumn(column, index);
     if (rebalance) await rebalanceColumn(tx, column.map((c) => c.id));
 
@@ -469,7 +489,7 @@ export async function archiveDone(actor: Actor): Promise<ActionResult<{ count: n
 */
 export async function joinTask(actor: Actor, id: string): Promise<ActionResult<TaskCard>> {
   return boardWrite(actor, async (tx, actor) => {
-    const task = await loadAccess(tx, id);
+    const task = await loadAccess(tx, id, actor);
     assertLive(task);
     if (task.assigneeIds.includes(actor.id)) return unchanged(await readCard(tx, id));
     if (!canJoinTask(actor, task)) {
@@ -494,7 +514,7 @@ export async function joinTask(actor: Actor, id: string): Promise<ActionResult<T
 /** Step off a task. Not on it (any more) is a no-op, not an error. */
 export async function leaveTask(actor: Actor, id: string): Promise<ActionResult<TaskCard>> {
   return boardWrite(actor, async (tx, actor) => {
-    const task = await loadAccess(tx, id);
+    const task = await loadAccess(tx, id, actor);
     assertLive(task);
     // On a live task the only thing canLeaveTask can object to is not being
     // on it, which is already the state asked for.
@@ -529,7 +549,7 @@ export async function addChecklistItem(
   input: AddChecklistItemData,
 ): Promise<ActionResult<ChecklistItemDTO>> {
   return boardWrite(actor, async (tx, actor) => {
-    const task = await loadAccess(tx, input.taskId);
+    const task = await loadAccess(tx, input.taskId, actor);
     assertCanWorkChecklist(actor, task);
     const last = await tx.checklistItem.aggregate({ where: { taskId: task.id }, _max: { position: true } });
     const item = await tx.checklistItem.create({
@@ -553,7 +573,7 @@ export async function updateChecklistItem(
       select: { ...checklistItemSelect, taskId: true },
     });
     if (!item) refuse("NOT_FOUND", MSG.itemGone);
-    const task = await loadAccess(tx, item.taskId);
+    const task = await loadAccess(tx, item.taskId, actor, MSG.itemGone);
     assertCanWorkChecklist(actor, task);
 
     const textChanged = input.text !== undefined && input.text !== item.text;
@@ -579,7 +599,7 @@ export async function deleteChecklistItem(actor: Actor, id: string): Promise<Act
   return boardWrite(actor, async (tx, actor) => {
     const item = await tx.checklistItem.findUnique({ where: { id }, select: { id: true, taskId: true, text: true } });
     if (!item) refuse("NOT_FOUND", MSG.itemGone);
-    const task = await loadAccess(tx, item.taskId);
+    const task = await loadAccess(tx, item.taskId, actor, MSG.itemGone);
     assertCanWorkChecklist(actor, task);
     await tx.checklistItem.delete({ where: { id }, select: { id: true } });
     await touch(tx, task.id, actor.id);
@@ -599,7 +619,7 @@ export async function deleteChecklistItem(actor: Actor, id: string): Promise<Act
 
 export async function addComment(actor: Actor, input: AddCommentData): Promise<ActionResult<CommentDTO>> {
   return boardWrite(actor, async (tx, actor) => {
-    const task = await loadAccess(tx, input.taskId);
+    const task = await loadAccess(tx, input.taskId, actor);
     assertLive(task);
     if (!canComment(actor, task)) refuse("FORBIDDEN", "You can't comment on this task.");
     const comment = await tx.comment.create({
@@ -619,8 +639,9 @@ export async function editComment(actor: Actor, input: EditCommentData): Promise
       select: { ...commentSelect, taskId: true },
     });
     if (!comment) refuse("NOT_FOUND", MSG.commentGone);
+    const task = await loadAccess(tx, comment.taskId, actor, MSG.commentGone);
     if (!canEditComment(actor, comment)) refuse("FORBIDDEN", "You can only edit your own comments.");
-    assertLive(await loadAccess(tx, comment.taskId));
+    assertLive(task);
     if (comment.body === input.body) return unchanged(toComment(comment));
     const updated = await tx.comment.update({
       where: { id: comment.id },
@@ -636,8 +657,9 @@ export async function deleteComment(actor: Actor, id: string): Promise<ActionRes
   return boardWrite(actor, async (tx, actor) => {
     const comment = await tx.comment.findUnique({ where: { id }, select: { id: true, authorId: true, taskId: true } });
     if (!comment) refuse("NOT_FOUND", MSG.commentGone);
+    const task = await loadAccess(tx, comment.taskId, actor, MSG.commentGone);
     if (!canDeleteComment(actor, comment)) refuse("FORBIDDEN", "You can only delete your own comments.");
-    assertLive(await loadAccess(tx, comment.taskId));
+    assertLive(task);
     await tx.comment.delete({ where: { id }, select: { id: true } });
     return changed({ id });
   });

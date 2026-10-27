@@ -443,7 +443,7 @@ describe.skipIf(!enabled)("self sign-up by email (integration)", () => {
     expect(await prisma.user.count()).toBe(2);
     expect(await prisma.signupRequest.count()).toBe(0);
     expect(await prisma.teamEvent.count()).toBe(0);
-    expect((await getNotificationFeed(owner.id)).items).toHaveLength(0);
+    expect((await getNotificationFeed(owner)).items).toHaveLength(0);
     // The action shows the reason rather than redirecting.
     await requestSignup(form({ email: "other@example.com" }), null);
     const other = codeFromEmail();
@@ -474,7 +474,7 @@ describe.skipIf(!enabled)("self sign-up by email (integration)", () => {
     const joined = await prisma.user.findUniqueOrThrow({ where: { email: EMAIL } });
 
     for (const reader of [owner, other]) {
-      const feed = await getNotificationFeed(reader.id);
+      const feed = await getNotificationFeed(reader);
       expect(feed.unread).toBe(1);
       expect(feed.items).toHaveLength(1);
       expect(feed.items[0]).toMatchObject({
@@ -490,8 +490,8 @@ describe.skipIf(!enabled)("self sign-up by email (integration)", () => {
       expect(`${feed.items[0]!.actorName} ${feed.items[0]!.text}.`).toBe("Asha Patel joined the board as Staff.");
     }
     // Staff, and the newcomer themselves, are not told.
-    expect(await getNotificationFeed(staff.id)).toMatchObject({ items: [], unread: 0 });
-    expect(await getNotificationFeed(joined.id)).toMatchObject({ items: [], unread: 0 });
+    expect(await getNotificationFeed(staff)).toMatchObject({ items: [], unread: 0 });
+    expect(await getNotificationFeed(joined)).toMatchObject({ items: [], unread: 0 });
 
     // The push goes after the response, to the active owners' devices only.
     expect(pushed).not.toHaveBeenCalled();
@@ -516,12 +516,12 @@ describe.skipIf(!enabled)("self sign-up by email (integration)", () => {
     });
     await prisma.activity.create({ data: { taskId: task.id, actorId: joined.id, type: "commented" } });
 
-    const feed = await getNotificationFeed(owner.id);
+    const feed = await getNotificationFeed(owner);
     expect(feed.items.map((i) => i.kind)).toEqual(["task", "team"]);
     expect(feed.unread).toBe(2);
 
     await prisma.user.update({ where: { id: owner.id }, data: { notificationReadAt: new Date() } });
-    expect((await getNotificationFeed(owner.id)).unread).toBe(0);
+    expect((await getNotificationFeed(owner)).unread).toBe(0);
   });
 
   // ── Limits ──────────────────────────────────────────────────────────────

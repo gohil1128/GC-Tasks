@@ -4,7 +4,8 @@
 // a shared to-do board for the team, not part of the books.
 //
 // Two kinds of account. Owners can see and change everything and run the
-// team. Staff see the whole board but may only work the tasks they are on —
+// team. Staff see unclaimed tasks and what other staff are on, not what the
+// owners are working on, and may only work the tasks they are on —
 // see src/lib/permissions.ts, which is the one place that line is drawn.
 
 generator client {
