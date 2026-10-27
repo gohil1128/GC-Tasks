@@ -4,7 +4,14 @@ import { authConfig } from "@/lib/auth.config";
 
 // Matched exactly: a prefix test would make any future route that merely
 // starts with "/login" public by accident.
-const PUBLIC_EXACT = new Set(["/login", "/setup", "/recover", "/api/auth"]);
+const PUBLIC_EXACT = new Set([
+  "/login",
+  "/setup",
+  "/recover",
+  "/forgot-password",
+  "/forgot-password/verify",
+  "/api/auth",
+]);
 const PUBLIC_PREFIXES = ["/api/auth/"];
 
 export default NextAuth(authConfig).auth((req) => {

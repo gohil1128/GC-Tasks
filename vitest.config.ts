@@ -15,6 +15,9 @@ import { resolve } from "node:path";
 */
 export default defineConfig({
   resolve: { alias: { "@": resolve(__dirname, "src") } },
+  // The new JSX runtime, as Next uses: a test that renders a page to look at
+  // its element tree must not need React in scope.
+  esbuild: { jsx: "automatic" },
   test: {
     environment: "node",
     include: ["tests/unit/**/*.test.ts", "tests/integration/**/*.test.ts", "src/**/*.test.ts"],

@@ -77,6 +77,7 @@ model User {
   pushSubscriptions PushSubscription[]
   ideas        Idea[]
   ideaVotes    IdeaVote[]
+  passwordResetCodes PasswordResetCode[]
 }
 
 // One browser/phone that wants board changes pushed to it. A person can
@@ -237,6 +238,25 @@ model LoginAttempt {
   failures    Int       @default(0)
   lockedUntil DateTime?
   updatedAt   DateTime  @updatedAt
+}
+
+// A "Forgot password?" code emailed to the account; see
+// src/modules/auth/password-reset.ts. Only an HMAC of the code is kept. One
+// live row per account: asking for a new code deletes the earlier ones.
+model PasswordResetCode {
+  id        String    @id @default(cuid())
+  userId    String
+  codeHash  String
+  expiresAt DateTime
+  // Wrong tries against this code; it is dead at five.
+  attempts  Int       @default(0)
+  // Set when the code is used, so it works once.
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
 }
 
 // The Ideas page: opinions and ideas, threaded like Reddit. Apart from the

@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { currentUser } from "@/lib/auth";
 import { APP_NAME, APP_SHORT_NAME } from "@/lib/brand";
+import { passwordResetEnabled } from "@/modules/auth/password-reset";
 import { safeNextPath } from "@/modules/auth/safe-next";
 import { hasAnyUser } from "@/modules/auth/setup";
 import { BrandLogo } from "@/components/shell/brand-logo";
@@ -62,9 +64,21 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           <h1 className="display text-[30px] font-semibold leading-tight">Welcome back</h1>
           <p className="mb-7 mt-1.5 text-sm text-muted-foreground">Sign in to the team board.</p>
           <LoginForm next={next} />
-          <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">
-            Forgotten your password? Ask an owner to reset it for you from the Team page.
-          </p>
+          {/* Only with email sending set up: otherwise there is no way to deliver a code. */}
+          {passwordResetEnabled() ? (
+            <p className="mt-6 text-center text-sm">
+              <Link
+                href="/forgot-password"
+                className="rounded text-brand-ink hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                Forgot password?
+              </Link>
+            </p>
+          ) : (
+            <p className="mt-6 text-center text-xs leading-relaxed text-muted-foreground">
+              Forgotten your password? Ask an owner to reset it for you from the Team page.
+            </p>
+          )}
         </div>
       </main>
     </div>

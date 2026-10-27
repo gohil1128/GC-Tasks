@@ -2,6 +2,7 @@
 import { CredentialsSignin } from "next-auth";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
+import { after as afterResponse } from "next/server";
 import { z } from "zod";
 import { currentUser, signIn, signOut } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -13,6 +14,7 @@ import {
   loginKeys,
   reserveLoginAttempt,
 } from "@/modules/auth/rate-limit";
+import { requestPasswordReset, resetPasswordWithCode } from "@/modules/auth/password-reset";
 import { recoverAccount } from "@/modules/auth/recovery";
 import { safeNextPath } from "@/modules/auth/safe-next";
 import { createFirstOwner } from "@/modules/auth/setup";
@@ -129,6 +131,53 @@ export async function recoverAction(_prev: AuthFormState, formData: FormData): P
     {
       key: field(formData, "key"),
       email: values.email,
+      password: field(formData, "password"),
+      confirmPassword: field(formData, "confirmPassword"),
+    },
+    clientIpFrom(await headers()),
+  );
+  if (!result.ok) {
+    if (result.code === "DISABLED") redirect("/login");
+    if (result.code === "LOCKED") return { error: tooMany(result.retryAfterSec ?? null), values };
+    return { error: result.error, values };
+  }
+
+  try {
+    await signIn("credentials", { email: result.email, password: field(formData, "password"), redirect: false });
+  } catch {
+    // The password is set either way; signing in by hand is the way through.
+    redirect("/login");
+  }
+  redirect("/");
+}
+
+// ── Forgot password (emailed code) ────────────────────────────────────────
+
+/*
+  /forgot-password: always on to the code page with the same message,
+  account or not. The email goes out after the response (after()), so the
+  wait is the same either way too.
+*/
+export async function requestResetCodeAction(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const values = { email: field(formData, "email") };
+  const result = await requestPasswordReset({ email: values.email }, clientIpFrom(await headers()), {
+    defer: (work) => afterResponse(work),
+  });
+  if (!result.ok) {
+    if (result.code === "DISABLED") redirect("/login");
+    if (result.code === "LOCKED") return { error: tooMany(result.retryAfterSec ?? null), values };
+    return { error: result.error, values };
+  }
+  redirect(`/forgot-password/verify?email=${encodeURIComponent(result.email)}&sent=1`);
+}
+
+/** /forgot-password/verify: the code and a new password, then signed straight in. */
+export async function resetWithCodeAction(_prev: AuthFormState, formData: FormData): Promise<AuthFormState> {
+  const values = { email: field(formData, "email") };
+  const result = await resetPasswordWithCode(
+    {
+      email: values.email,
+      code: field(formData, "code"),
       password: field(formData, "password"),
       confirmPassword: field(formData, "confirmPassword"),
     },

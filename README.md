@@ -47,8 +47,24 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
    - `AUTH_SECRET`: any random string of 32 or more characters.
    - `AUTH_TRUST_HOST`: `true`
    - For device push notifications, also add a VAPID pair: `NEXT_PUBLIC_VAPID_PUBLIC_KEY`, `VAPID_PRIVATE_KEY`, and `VAPID_SUBJECT` (a `mailto:` contact URI). The in-app bell works without them.
+   - For **Forgot password?** by email, also add `RESEND_API_KEY` and `EMAIL_FROM` (see [Password reset by email](#password-reset-by-email)). Without them, owners reset passwords from the Team page.
 4. Deploy. This first build fails because there is no database yet. That's expected. Next, open the project's **Storage** tab, choose **Create Database → Neon**, and connect it to the project. Leave the environment variable prefix empty. This sets `DATABASE_URL`, the pooled connection the app uses, and `DATABASE_URL_UNPOOLED`, the direct connection the build uses for migrations. (Migrations through the pooler leave a lock behind that can fail a later build; without `DATABASE_URL_UNPOOLED`, as locally and in CI, the build migrates over `DATABASE_URL`.) Then use **Deployments → ⋯ → Redeploy**. Each build applies the database migrations automatically.
 5. Open the site. The first visit goes to **/setup**, where you create the first account, which is an owner. That page only works while there are no accounts. After that, add everyone else from the **Team** page.
+
+## Password reset by email
+
+With email set up, the sign-in page shows **Forgot password?**. People enter their email, get a 6-digit code (valid for 10 minutes, 5 tries, one use), and choose a new password with it. They're signed in straight away, and anyone signed in as them elsewhere is signed out. Without email set up, the link is hidden, /forgot-password doesn't exist, and the sign-in page says to ask an owner, as before.
+
+1. Create an account at [resend.com](https://resend.com). Under **Domains**, add the domain the emails come from (for example `godschai.com`) and add the DNS records Resend shows you at your DNS provider. Wait until the domain shows as **Verified**.
+2. Under **API Keys**, create a key with **Sending access** (you can limit it to that domain). Copy it; it starts with `re_`.
+3. In Vercel, open **Settings → Environment Variables** and add:
+   - `RESEND_API_KEY`: the key from step 2.
+   - `EMAIL_FROM`: the sender, on the verified domain, for example `GC Tasks <tasks@godschai.com>`.
+4. Redeploy (**Deployments → ⋯ → Redeploy**). The link appears on the sign-in page.
+
+The form gives the same answer whether or not an email has an account, and deactivated accounts get no email. Code requests and attempts count against limits like sign-in does. If an email can't be sent, the error is in the Vercel logs (**Logs**, search for "Password reset email"); the code itself is never logged or stored, only a keyed hash of it.
+
+`EMAIL_DEV_LOG_DIR` is for local browser tests only: when set, emails are written as JSON files to that folder instead of being sent. It's ignored on Vercel; never set it there.
 
 ## Locked out?
 
