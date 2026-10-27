@@ -57,6 +57,8 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
 
 With email set up, the sign-in page shows **Forgot password?**. People enter their email, get a 6-digit code (valid for 10 minutes, 5 tries, one use), and choose a new password with it. They're signed in straight away, and anyone signed in as them elsewhere is signed out. Without email set up, the link is hidden, /forgot-password doesn't exist, and the sign-in page says to ask an owner, as before.
 
+Anyone can change their own email from **Settings → Email**. They enter the new address and their current password, and a 6-digit code goes to the new address. The email (the one they sign in with) changes only once that code is entered, and the old address gets a note that it changed. Same code rules as above. Without email set up, Settings says to ask an owner.
+
 1. Create an account at [resend.com](https://resend.com). Under **Domains**, add the domain the emails come from (for example `godschai.com`) and add the DNS records Resend shows you at your DNS provider. Wait until the domain shows as **Verified**.
 2. Under **API Keys**, create a key with **Sending access** (you can limit it to that domain). Copy it; it starts with `re_`.
 3. In Vercel, open **Settings → Environment Variables** and add:

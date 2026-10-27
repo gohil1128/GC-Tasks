@@ -8,6 +8,8 @@ import { canManageLabels } from "@/lib/permissions";
 import { prisma } from "@/lib/prisma";
 import { AppearancePicker } from "./_components/appearance-picker";
 import { LabelsManager, type ManagedLabel } from "./_components/labels-manager";
+import { emailChangeEnabled } from "@/modules/auth/email-change";
+import { EmailChangeForm } from "./_components/email-change-form";
 import { ProfileForm } from "./_components/profile-form";
 import { SettingsSection } from "./_components/section";
 
@@ -37,7 +39,15 @@ export default async function SettingsPage() {
         <ProfileForm me={{ id: me.id, name: me.name, email: me.email, color: me.color, avatar: me.avatar, role: me.role }} />
       </SettingsSection>
 
-      <SettingsSection id="password" title="Password" description={`You sign in as ${me.email}.`}>
+      <SettingsSection
+        id="email"
+        title="Email"
+        description={`You sign in as ${me.email}. A new address is confirmed with a code sent to it.`}
+      >
+        <EmailChangeForm email={me.email} enabled={emailChangeEnabled()} />
+      </SettingsSection>
+
+      <SettingsSection id="password" title="Password">
         <Button asChild variant="outline">
           <Link href="/change-password">
             <KeyRound className="h-4 w-4" aria-hidden />

@@ -36,50 +36,51 @@ enum Role {
 }
 
 model User {
-  id           String  @id @default(cuid())
-  email        String  @unique
-  name         String
-  passwordHash String
+  id                 String    @id @default(cuid())
+  email              String    @unique
+  name               String
+  passwordHash       String
   // Defaults to the narrower role: an account only becomes an owner because
   // somebody said so (first-run setup, or an owner promoting it).
-  role         Role    @default(STAFF)
+  role               Role      @default(STAFF)
   // Set when somebody else chose the password (account created or reset by
   // an owner) and cleared when the person picks their own. Nothing past
   // the change-password screen loads while it is true.
-  mustChangePassword Boolean @default(false)
+  mustChangePassword Boolean   @default(false)
   // Copied into the session cookie at sign-in and compared on every request.
   // Bumped when a password is reset or changed and when an account is
   // deactivated, which signs out every session issued before — a lost phone
   // stays locked out even after its owner picks a new password.
-  sessionVersion Int @default(0)
+  sessionVersion     Int       @default(0)
   // Deactivated rather than deleted, so their name stays on the tasks,
   // comments and history they left behind. A deactivated account cannot sign
   // in and is not offered as an assignee.
-  active    Boolean  @default(true)
+  active             Boolean   @default(true)
   // Avatar tint, one of the keys in src/lib/colors.ts.
-  color     String   @default("rust")
+  color              String    @default("rust")
   // The animal they picked from the chai club in src/lib/avatars.ts, or null
   // for "not picked yet" — the avatar then derives one from the account id,
   // so nobody is ever faceless.
-  avatar    String?
+  avatar             String?
   // The bell's read watermark: board activity by OTHER people created after
   // this is "unread" for this person. Null = has never opened the bell; the
   // notifications migration stamps existing accounts with its run time, so
   // nobody's whole history lands as unread on day one.
   notificationReadAt DateTime?
-  createdAt DateTime @default(now())
-  updatedAt DateTime @updatedAt
+  createdAt          DateTime  @default(now())
+  updatedAt          DateTime  @updatedAt
 
-  createdTasks Task[]          @relation("TaskCreatedBy")
-  updatedTasks Task[]          @relation("TaskUpdatedBy")
-  assignments  TaskAssignee[]
-  comments     Comment[]
-  activity     Activity[]
-  pushSubscriptions PushSubscription[]
-  ideas        Idea[]
-  ideaVotes    IdeaVote[]
+  createdTasks       Task[]              @relation("TaskCreatedBy")
+  updatedTasks       Task[]              @relation("TaskUpdatedBy")
+  assignments        TaskAssignee[]
+  comments           Comment[]
+  activity           Activity[]
+  pushSubscriptions  PushSubscription[]
+  ideas              Idea[]
+  ideaVotes          IdeaVote[]
   passwordResetCodes PasswordResetCode[]
-  teamEvents   TeamEvent[]
+  emailChange        EmailChangeRequest?
+  teamEvents         TeamEvent[]
 }
 
 // One browser/phone that wants board changes pushed to it. A person can
@@ -245,6 +246,22 @@ model LoginAttempt {
 // A "Forgot password?" code emailed to the account; see
 // src/modules/auth/password-reset.ts. Only an HMAC of the code is kept. One
 // live row per account: asking for a new code deletes the earlier ones.
+// Changing your own email (Settings): the code goes to the NEW address, and
+// the account's email changes only once that code is entered. One pending
+// change per account; a new request replaces it.
+model EmailChangeRequest {
+  id        String   @id @default(cuid())
+  userId    String   @unique
+  newEmail  String
+  codeHash  String
+  expiresAt DateTime
+  // Wrong tries against this code; it is dead at five.
+  attempts  Int      @default(0)
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
 model PasswordResetCode {
   id        String    @id @default(cuid())
   userId    String
