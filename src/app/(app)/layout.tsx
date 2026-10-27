@@ -1,5 +1,6 @@
 import { requirePageUser } from "@/lib/page-auth";
 import { AppHeader } from "@/components/shell/app-header";
+import { PullToRefresh } from "@/components/shell/pull-to-refresh";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,7 @@ export default async function AppLayout({ children }: { children: React.ReactNod
         Skip to content
       </a>
       <AppHeader me={{ id: me.id, name: me.name, email: me.email, color: me.color, avatar: me.avatar, role: me.role }} />
-      <main id="main" className="flex min-h-0 flex-1 flex-col overflow-y-auto">
-        {children}
-      </main>
+      <PullToRefresh>{children}</PullToRefresh>
     </div>
   );
 }

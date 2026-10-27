@@ -83,6 +83,7 @@ import { BoardToolbar } from "./board-toolbar";
 import { ColumnTabs } from "./column-tabs";
 import { StaffNotice } from "./staff-notice";
 import { DraggedCard } from "./task-card";
+import { REFRESH_EVENT, type RefreshEventDetail } from "@/components/shell/pull-to-refresh";
 import { useBoardSync } from "./use-board-sync";
 import { useColumnSwipe } from "./use-column-swipe";
 
@@ -232,6 +233,41 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
   // dragRef is the drag as the handlers last left it, which can be ahead of
   // the `drag` state React has rendered.
   const dragRef = React.useRef<DragState | null>(null);
+  // Pull down to refresh: the shell asks, the board refetches its tasks and
+  // says when it has them. Also tells the shell a card drag is under way, so a
+  // press-and-drag is never taken for a pull.
+  const refreshingRef = React.useRef(sync.refreshing);
+  const refreshWaiters = React.useRef<Array<() => void>>([]);
+  React.useEffect(() => {
+    if (refreshingRef.current && !sync.refreshing) refreshWaiters.current.splice(0).forEach((done) => done());
+    refreshingRef.current = sync.refreshing;
+  }, [sync.refreshing]);
+  const syncRefreshRef = React.useRef(sync.refresh);
+  syncRefreshRef.current = sync.refresh;
+  React.useEffect(() => {
+    function onPull(event: Event) {
+      const { wait } = (event as CustomEvent<RefreshEventDetail>).detail;
+      wait(
+        new Promise<void>((resolve) => {
+          // Not stuck forever if the fetch is held back behind a write.
+          const timer = setTimeout(resolve, 5_000);
+          refreshWaiters.current.push(() => {
+            clearTimeout(timer);
+            resolve();
+          });
+          syncRefreshRef.current();
+        }),
+      );
+    }
+    window.addEventListener(REFRESH_EVENT, onPull);
+    return () => window.removeEventListener(REFRESH_EVENT, onPull);
+  }, []);
+  React.useEffect(() => {
+    if (drag) document.body.setAttribute("data-board-dragging", "");
+    else document.body.removeAttribute("data-board-dragging");
+    return () => document.body.removeAttribute("data-board-dragging");
+  }, [drag]);
+
   // Phone: swipe sideways between columns; stands down while a card is being dragged.
   const columnSwipeRef = useColumnSwipe({
     current: mobileColumn,
