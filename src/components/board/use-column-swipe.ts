@@ -1,4 +1,5 @@
 import * as React from "react";
+import { flushSync } from "react-dom";
 import { STATUSES, type Status } from "@/modules/tasks/types";
 
 /*
@@ -31,6 +32,24 @@ const ARM_PX = 12;
 const EDGE_PX = 20;
 const VELOCITY_WINDOW_MS = 100;
 const EASING = "cubic-bezier(0.32, 0.72, 0.35, 1)";
+// Close to linear: the column leaves at the speed the finger had, rather than pausing and then jumping.
+const LEAVE_EASING = "cubic-bezier(0.2, 0.2, 0.55, 0.85)";
+/** How much further (as a share of the screen width) the leaving column travels before the next arrives. */
+const LEAVE_TRAVEL = 0.35;
+
+/**
+ * How long the leaving column takes to travel `distancePx` further, and the
+ * arriving one to settle. The leaving column carries on at the speed the
+ * finger had, so a hard flick is quick and a slow, deliberate drag gets a
+ * slow, deliberate finish; both are kept inside a range that never feels
+ * abrupt or sluggish. Picking up from where the finger let go (not from the
+ * middle) is what keeps it fluid.
+ */
+export function settleDurations(distancePx: number, velocityX: number): { out: number; in: number } {
+  const speed = Math.max(Math.abs(velocityX), 0.7); // px per ms
+  const out = Math.round(Math.min(220, Math.max(70, distancePx / speed)));
+  return { out, in: Math.round(Math.min(280, Math.max(150, out * 1.4))) };
+}
 
 /** The column a finished swipe lands on, or null to stay put. dx < 0 is a swipe to the left. */
 export function columnAfterSwipe(current: Status, dx: number, velocityX: number): Status | null {
@@ -73,6 +92,8 @@ export function useColumnSwipe({
     let mode: "pending" | "swipe" | "other" = "pending";
     let lastDx = 0;
     let samples: { t: number; x: number }[] = [];
+    // True while a committed swipe is still settling; a new touch waits for it.
+    let settling = false;
 
     const now = (event: TouchEvent) => (event.timeStamp > 0 ? event.timeStamp : Date.now());
     const velocity = (): number => {
@@ -92,7 +113,7 @@ export function useColumnSwipe({
 
     const onTouchStart = (event: TouchEvent) => {
       start = null;
-      if (event.touches.length !== 1 || window.matchMedia("(min-width: 768px)").matches) return;
+      if (settling || event.touches.length !== 1 || window.matchMedia("(min-width: 768px)").matches) return;
       if (latest.current.isDragging() || startsInsideNoSwipe(event.target)) return;
       const touch = event.touches[0]!;
       if (touch.clientX < EDGE_PX || touch.clientX > window.innerWidth - EDGE_PX) return;
@@ -153,21 +174,53 @@ export function useColumnSwipe({
         }
         return;
       }
-      reset(col);
-      latest.current.onChange(target);
-      // The new column slides in from the side the finger was heading.
-      requestAnimationFrame(() => {
+      if (!col || typeof col.animate !== "function") {
+        reset(col);
+        latest.current.onChange(target);
+        return;
+      }
+      // Carry on from where the finger let go: the column keeps travelling the
+      // way it was going, at the speed it was going, then the next one eases in
+      // from the opposite side.
+      const width = Math.max(el.clientWidth, 1);
+      const dir = dx < 0 ? -1 : 1;
+      const travel = width * LEAVE_TRAVEL;
+      const time = settleDurations(travel, vx);
+      settling = true;
+      col.style.transition = "none";
+      col.style.transform = "";
+      const leave = col.animate(
+        [
+          { transform: `translateX(${dx}px)`, opacity: 1 },
+          { transform: `translateX(${dx + dir * travel}px)`, opacity: 0 },
+        ],
+        { duration: time.out, easing: LEAVE_EASING, fill: "forwards" },
+      );
+      leave.onfinish = () => {
+        // Switched synchronously, so the arriving column is never painted
+        // at rest for a frame before it starts to move.
+        flushSync(() => latest.current.onChange(target));
+        leave.cancel();
+        reset(col);
         const next = shownColumn();
-        if (!next || typeof next.animate !== "function") return;
-        const from = dx < 0 ? "36%" : "-36%";
-        next.animate(
-          [
-            { transform: `translateX(${from})`, opacity: 0.4 },
-            { transform: "translateX(0)", opacity: 1 },
-          ],
-          { duration: 220, easing: EASING },
-        );
-      });
+        if (next && typeof next.animate === "function") {
+          const arrive = next.animate(
+            [
+              { transform: `translateX(${-dir * width * 0.45}px)`, opacity: 0 },
+              { transform: "translateX(0)", opacity: 1 },
+            ],
+            { duration: time.in, easing: EASING },
+          );
+          arrive.onfinish = arrive.oncancel = () => {
+            settling = false;
+          };
+        } else {
+          settling = false;
+        }
+      };
+      leave.oncancel = () => {
+        settling = false;
+      };
     };
 
     el.addEventListener("touchstart", onTouchStart, { passive: true });
