@@ -111,7 +111,8 @@ export function useColumnSwipe({
   const animations = React.useRef<Animation[]>([]);
   const detach = React.useRef<(() => void) | null>(null);
 
-  const track = () => viewport.current?.firstElementChild as HTMLElement | null;
+  // Found by its marker, not its position: other things share the viewport (the pull-to-refresh spinner).
+  const track = () => viewport.current?.querySelector<HTMLElement>(":scope > [data-column-track]") ?? null;
   const isPhone = () => !window.matchMedia("(min-width: 768px)").matches;
 
   /** Writes `p` to the pill and, when the carousel is live, to the track; and lights the nearest tab. */

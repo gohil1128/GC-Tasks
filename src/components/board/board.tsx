@@ -868,7 +868,10 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
             className="relative flex min-h-0 flex-1 flex-col overflow-x-clip px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:pb-6"
           >
             <PullIndicator ref={columnPullIndicator} />
-            <div className="flex min-h-0 flex-1 gap-4 will-change-transform md:grid md:grid-cols-3 md:grid-rows-[minmax(0,1fr)] md:will-change-auto">
+            <div
+              data-column-track
+              className="flex min-h-0 flex-1 gap-4 will-change-transform md:grid md:grid-cols-3 md:grid-rows-[minmax(0,1fr)] md:will-change-auto"
+            >
               {STATUSES.map((status) => (
                 <BoardColumn
                   key={status}
