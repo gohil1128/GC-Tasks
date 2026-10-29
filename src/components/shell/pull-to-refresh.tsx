@@ -10,9 +10,14 @@ import { cn } from "@/lib/utils";
 
   Two places use it. On Ideas, Team and Settings the whole page under the
   header moves (PullToRefresh, which renders <main>). On the board only the
-  column under the finger moves — the title, search, filters and tab bar stay
-  put — so the board opts out of the page-wide pull (data-own-pull) and wires
-  usePullToRefresh to its columns itself.
+  task list under the finger moves — the title, search, filters, tab bar and
+  the column's own header stay put — so the board opts out of the page-wide
+  pull (data-own-pull) and wires usePullToRefresh to its task lists itself.
+
+  The phone's own bounce at the top of a scroll box would fight the pull (it
+  takes the touch first and the pull never starts), so the scroll boxes turn
+  it off (overscroll-y-none), and a touch that is clearly heading down from
+  the top is claimed straight away, before the browser can start scrolling.
 
   A pull begins only when
   the finger lands with nothing above it left to scroll (the column or page
@@ -102,8 +107,10 @@ export async function refreshEverything(router: { refresh: () => void }): Promis
 type PullOptions = {
   /** The element that moves with the finger, chosen from where the touch began (null: no pull here). */
   getTarget: (touched: Element) => HTMLElement | null;
-  /** The PullIndicator to drive. */
-  getIndicator: () => HTMLElement | null;
+  /** The scroll box that must be at its top for a pull to start (default: the target itself). */
+  getScrollRoot?: (target: HTMLElement) => HTMLElement | null;
+  /** The PullIndicator to drive for this target. */
+  getIndicator: (target: HTMLElement) => HTMLElement | null;
   onRefresh: () => Promise<void>;
   /** Touches this listener should leave alone (somebody else handles them). */
   skip?: (touched: Element) => boolean;
@@ -146,6 +153,7 @@ export function usePullToRefresh(options: PullOptions): (root: HTMLElement | nul
     let mode: "pending" | "pull" | "other" = "pending";
     let pulled = 0;
     let moving: HTMLElement | null = null;
+    let scrollBox: HTMLElement | null = null;
     let busy = false;
 
     const apply = (px: number, animate: boolean, refreshing = false) => {
@@ -153,7 +161,7 @@ export function usePullToRefresh(options: PullOptions): (root: HTMLElement | nul
         moving.style.transition = animate ? `transform 260ms ${SETTLE_EASING}` : "none";
         moving.style.transform = px ? `translateY(${px}px)` : "";
       }
-      drawIndicator(latest.current.getIndicator(), px, refreshing);
+      drawIndicator(moving ? latest.current.getIndicator(moving) : null, px, refreshing);
     };
 
     const onTouchStart = (e: TouchEvent) => {
@@ -162,8 +170,11 @@ export function usePullToRefresh(options: PullOptions): (root: HTMLElement | nul
       if (document.body.hasAttribute("data-board-dragging") || blockedStart(e.target)) return;
       if (latest.current.skip?.(e.target)) return;
       const target = latest.current.getTarget(e.target);
-      if (!target || !atTop(e.target, target)) return;
+      if (!target) return;
+      const scrollRoot = latest.current.getScrollRoot?.(target) ?? target;
+      if (!atTop(e.target, scrollRoot)) return;
       moving = target;
+      scrollBox = scrollRoot;
       const t = e.touches[0]!;
       start = { x: t.clientX, y: t.clientY };
       mode = "pending";
@@ -186,9 +197,12 @@ export function usePullToRefresh(options: PullOptions): (root: HTMLElement | nul
           mode = "other";
           return;
         }
+        // Clearly heading down from the top: claim the touch now, before the browser starts a
+        // scroll or bounce of its own (after that, it no longer lets the touch be claimed).
+        if (dy > 3 && dy > Math.abs(dx) * 1.5 && e.cancelable) e.preventDefault();
         if (dy < ARM_PX) return;
         // Something scrolled up under the finger while it was pending (momentum): wait for the top.
-        if (!moving || !atTop(e.target, moving)) return;
+        if (!scrollBox || !atTop(e.target, scrollBox)) return;
         mode = "pull";
       }
       if (mode !== "pull") return;
@@ -238,6 +252,7 @@ export const PullIndicator = React.forwardRef<HTMLDivElement, { className?: stri
   return (
     <div
       ref={ref}
+      data-pull-indicator
       className={cn("group pointer-events-none absolute inset-x-0 top-0 z-10 flex justify-center", className)}
       style={{ height: 0, opacity: 0 }}
     >
@@ -274,7 +289,7 @@ export function PullToRefresh({ children }: { children: React.ReactNode }) {
   return (
     <div className="relative flex min-h-0 flex-1 flex-col overflow-hidden">
       <PullIndicator ref={indicator} />
-      <main id="main" ref={mainRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-contain">
+      <main id="main" ref={mainRef} className="flex min-h-0 flex-1 flex-col overflow-y-auto overscroll-y-none">
         {children}
       </main>
     </div>

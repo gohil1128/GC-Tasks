@@ -141,6 +141,50 @@
     scrollbar-width: thin;
     scrollbar-color: hsl(var(--border)) transparent;
   }
+
+  /*
+    Soft edges on a scrolling list: cards fade out as they slide under the
+    column header (once the list is scrolled) and into the bottom edge (while
+    there is more below), instead of being cut off by a hard line. The
+    data-scrolled / data-more attributes are kept up to date by useScrollEdges.
+  */
+  .scroll-fade {
+    -webkit-mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--fade-top),
+      #000 calc(100% - var(--fade-bottom)),
+      transparent 100%
+    );
+    mask-image: linear-gradient(
+      to bottom,
+      transparent 0,
+      #000 var(--fade-top),
+      #000 calc(100% - var(--fade-bottom)),
+      transparent 100%
+    );
+    transition:
+      --fade-top 180ms ease-out,
+      --fade-bottom 180ms ease-out;
+  }
+  .scroll-fade[data-scrolled] {
+    --fade-top: 28px;
+  }
+  .scroll-fade[data-more] {
+    --fade-bottom: 36px;
+  }
+}
+
+/* Registered so the fade edges ease in and out instead of snapping. */
+@property --fade-top {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
+}
+@property --fade-bottom {
+  syntax: "<length>";
+  inherits: false;
+  initial-value: 0px;
 }
 
 /*
