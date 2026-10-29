@@ -19,10 +19,11 @@ import { runAction } from "@/lib/action-client";
 import { shareIdeaAction } from "@/modules/ideas/actions";
 import { IDEA_TITLE_MAX } from "@/modules/ideas/validation";
 import { PostBox } from "./bits";
+import { AddPhotosButton, PhotoDraftStrip, usePhotoDrafts } from "./photos";
 
 /**
   "Share an idea": a title, and as much or as little explanation as the
-  person likes. On success it opens the new idea's thread, where the replies
+  person likes, with up to four photos. On success it opens the new idea's thread, where the replies
   will land.
 */
 export function ShareIdeaButton() {
@@ -84,12 +85,14 @@ function ShareIdeaForm({
   const ids = { title: React.useId(), body: React.useId() };
   const [title, setTitle] = React.useState("");
   const [body, setBody] = React.useState("");
+  const photos = usePhotoDrafts();
+  const blocked = photos.uploading || photos.failed;
 
   async function submit(event?: React.FormEvent) {
     event?.preventDefault();
-    if (!title.trim() || pending) return;
+    if (!title.trim() || pending || blocked) return;
     setPending(true);
-    const result = await runAction(shareIdeaAction({ title, body }));
+    const result = await runAction(shareIdeaAction({ title, body, photoIds: photos.ids }));
     setPending(false);
     if (!result.ok) return;
     onDone();
@@ -125,12 +128,18 @@ function ShareIdeaForm({
           rows={4}
         />
       </div>
+      <div className="grid gap-2">
+        <PhotoDraftStrip photos={photos} disabled={pending} />
+        <div>
+          <AddPhotosButton photos={photos} disabled={pending} />
+        </div>
+      </div>
       <DialogFooter>
         <Button type="button" variant="outline" onClick={onCancel} disabled={pending}>
           Cancel
         </Button>
-        <Button type="submit" disabled={pending || !title.trim()} aria-busy={pending || undefined}>
-          {pending ? "Sharing…" : "Share idea"}
+        <Button type="submit" disabled={pending || blocked || !title.trim()} aria-busy={pending || undefined}>
+          {pending ? "Sharing…" : photos.uploading ? "Uploading photos…" : "Share idea"}
         </Button>
       </DialogFooter>
     </form>

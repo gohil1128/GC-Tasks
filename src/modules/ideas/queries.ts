@@ -26,6 +26,7 @@ function postSelect(viewerId: string) {
     deletedAt: true,
     author: { select: authorSelect },
     votes: { where: { userId: viewerId }, select: { userId: true } },
+    photos: { select: { id: true, width: true, height: true }, orderBy: { position: "asc" } },
     _count: { select: { votes: true } },
   } satisfies Prisma.IdeaSelect;
 }
@@ -50,6 +51,7 @@ function toPost(row: PostRow): IdeaPost {
     deleted,
     upvotes: row._count.votes,
     upvotedByMe: row.votes.length > 0,
+    photos: deleted ? [] : row.photos,
   };
 }
 
@@ -78,6 +80,8 @@ export async function listIdeas(viewerId: string, sort: IdeaSort): Promise<IdeaS
         upvotes: post.upvotes,
         upvotedByMe: post.upvotedByMe,
         replyCount: row._count.thread,
+        cover: post.photos[0] ?? null,
+        photoCount: post.photos.length,
       };
     }),
     sort,

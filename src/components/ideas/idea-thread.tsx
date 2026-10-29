@@ -17,6 +17,7 @@ import { countDescendants, indentFor } from "@/modules/ideas/thread";
 import type { IdeaPost, IdeaThread, ReplyNode } from "@/modules/ideas/types";
 import { IDEA_TITLE_MAX } from "@/modules/ideas/validation";
 import { Byline, DELETED, PostAction, PostBox, VoteButton } from "./bits";
+import { AddPhotosButton, PhotoDraftStrip, PhotoGallery, usePhotoDrafts } from "./photos";
 
 /*
   One idea and its replies, Reddit-style: the idea on top, then the replies
@@ -170,6 +171,7 @@ function IdeaCard({ idea, hasReplies }: { idea: IdeaPost; hasReplies: boolean })
               </p>
             )
           )}
+          <PhotoGallery photos={idea.photos} label="this idea" className="mt-3" />
           <div className="mt-4 flex flex-wrap items-center gap-1">
             <VoteButton
               key={`${idea.id}:${idea.upvotes}:${idea.upvotedByMe}`}
@@ -197,13 +199,16 @@ function EditIdeaForm({ idea, onDone, onCancel }: { idea: IdeaPost; onDone: () =
   const [title, setTitle] = React.useState(idea.title ?? "");
   const [body, setBody] = React.useState(idea.body);
   const [saving, setSaving] = React.useState(false);
+  const photos = usePhotoDrafts(idea.photos);
+  const blocked = photos.uploading || photos.failed;
 
   async function save(event?: React.FormEvent) {
     event?.preventDefault();
-    if (!title.trim() || saving) return;
-    if (title.trim() === idea.title && body.trim() === idea.body) return onCancel();
+    if (!title.trim() || saving || blocked) return;
+    const samePhotos = photos.ids.join() === idea.photos.map((p) => p.id).join();
+    if (title.trim() === idea.title && body.trim() === idea.body && samePhotos) return onCancel();
     setSaving(true);
-    const result = await runAction(editIdeaAction({ id: idea.id, title, body }));
+    const result = await runAction(editIdeaAction({ id: idea.id, title, body, photoIds: photos.ids }));
     setSaving(false);
     if (result.ok) onDone();
   }
@@ -238,8 +243,10 @@ function EditIdeaForm({ idea, onDone, onCancel }: { idea: IdeaPost; onDone: () =
         disabled={saving}
         rows={3}
       />
-      <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={saving || !title.trim()} aria-busy={saving || undefined}>
+      <PhotoDraftStrip photos={photos} disabled={saving} />
+      <div className="flex flex-wrap items-center gap-2">
+        <AddPhotosButton photos={photos} disabled={saving} />
+        <Button type="submit" size="sm" disabled={saving || blocked || !title.trim()} aria-busy={saving || undefined} className="ml-auto">
           {saving ? "Saving…" : "Save"}
         </Button>
         <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={saving}>
@@ -271,15 +278,19 @@ function ReplyForm({
   const { refresh } = useThread();
   const [body, setBody] = React.useState("");
   const [posting, setPosting] = React.useState(false);
+  const photos = usePhotoDrafts();
+  const hasSomething = body.trim().length > 0 || photos.ids.length > 0;
+  const blocked = photos.uploading || photos.failed;
 
   async function post(event?: React.FormEvent) {
     event?.preventDefault();
-    if (!body.trim() || posting) return;
+    if (!hasSomething || posting || blocked) return;
     setPosting(true);
-    const result = await runAction(replyToIdeaAction(parentId, body));
+    const result = await runAction(replyToIdeaAction(parentId, body, photos.ids));
     setPosting(false);
     if (!result.ok) return;
     setBody("");
+    photos.reset();
     onPosted();
     refresh();
   }
@@ -296,7 +307,9 @@ function ReplyForm({
         autoFocus={autoFocus}
         disabled={posting}
       />
+      <PhotoDraftStrip photos={photos} disabled={posting} />
       <div className="flex items-center gap-2">
+        <AddPhotosButton photos={photos} disabled={posting} />
         <p className={cn("hidden text-2xs text-muted-foreground sm:block", !body.trim() && "invisible")}>
           Ctrl or ⌘ + Enter to send
         </p>
@@ -306,8 +319,8 @@ function ReplyForm({
               Cancel
             </Button>
           )}
-          <Button type="submit" size="sm" disabled={posting || !body.trim()} aria-busy={posting || undefined}>
-            {posting ? "Replying…" : "Reply"}
+          <Button type="submit" size="sm" disabled={posting || blocked || !hasSomething} aria-busy={posting || undefined}>
+            {posting ? "Replying…" : photos.uploading ? "Uploading…" : "Reply"}
           </Button>
         </div>
       </div>
@@ -336,28 +349,13 @@ function ReplyItem({ node, depth, parentName }: { node: ReplyNode; depth: number
   const { actor, now, requestDelete, refresh } = useThread();
   const [collapsed, setCollapsed] = React.useState(false);
   const [replying, setReplying] = React.useState(false);
-  const [draft, setDraft] = React.useState<string | null>(null);
-  const [saving, setSaving] = React.useState(false);
+  const [editing, setEditing] = React.useState(false);
   const access = accessOf(node);
   const mine = node.authorId === actor.id;
   const name = node.author ? (mine ? "you" : node.author.name) : DELETED;
   const hidden = countDescendants(node);
   const childrenIndent = indentFor(depth + 1) > indentFor(depth);
   const toggleLabel = `${collapsed ? "Expand" : "Collapse"} reply by ${name}`;
-
-  async function saveEdit() {
-    if (draft === null || saving) return;
-    const body = draft.trim();
-    if (!body) return;
-    if (body === node.body) return setDraft(null);
-    setSaving(true);
-    const result = await runAction(editIdeaAction({ id: node.id, body }));
-    setSaving(false);
-    if (result.ok) {
-      setDraft(null);
-      refresh();
-    }
-  }
 
   return (
     <li className="min-w-0">
@@ -390,35 +388,29 @@ function ReplyItem({ node, depth, parentName }: { node: ReplyNode; depth: number
 
       {!collapsed && (
         <div className="pl-7">
-          {draft !== null ? (
-            <div className="mt-1.5 grid gap-2">
-              <PostBox
-                value={draft}
-                onChange={setDraft}
-                onSubmit={() => void saveEdit()}
-                onCancel={() => setDraft(null)}
-                label="Edit your reply"
-                autoFocus
-                disabled={saving}
-              />
-              <div className="flex gap-2">
-                <Button type="button" size="sm" onClick={() => void saveEdit()} disabled={saving || !draft.trim()} aria-busy={saving || undefined}>
-                  {saving ? "Saving…" : "Save"}
-                </Button>
-                <Button type="button" size="sm" variant="ghost" onClick={() => setDraft(null)} disabled={saving}>
-                  Cancel
-                </Button>
-              </div>
-            </div>
+          {editing ? (
+            <EditReplyForm
+              node={node}
+              onCancel={() => setEditing(false)}
+              onDone={() => {
+                setEditing(false);
+                refresh();
+              }}
+            />
           ) : node.deleted ? (
             <p className="mt-0.5 text-sm italic text-muted-foreground">{DELETED}</p>
           ) : (
-            <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed [overflow-wrap:anywhere]">
-              <LinkifiedText text={node.body} />
-            </p>
+            <>
+              {node.body && (
+                <p className="mt-0.5 whitespace-pre-wrap text-sm leading-relaxed [overflow-wrap:anywhere]">
+                  <LinkifiedText text={node.body} />
+                </p>
+              )}
+              <PhotoGallery photos={node.photos} label={`the reply by ${name}`} className="mt-2 max-w-sm" />
+            </>
           )}
 
-          {draft === null && (
+          {!editing && (
             <div className="-ml-1 mt-1 flex flex-wrap items-center gap-0.5">
               <VoteButton
                 key={`${node.id}:${node.upvotes}:${node.upvotedByMe}`}
@@ -436,7 +428,7 @@ function ReplyItem({ node, depth, parentName }: { node: ReplyNode; depth: number
                 </PostAction>
               )}
               {canEditIdea(actor, access) && (
-                <PostAction onClick={() => setDraft(node.body)}>
+                <PostAction onClick={() => setEditing(true)}>
                   Edit<span className="sr-only"> your reply</span>
                 </PostAction>
               )}
@@ -491,5 +483,49 @@ function ReplyItem({ node, depth, parentName }: { node: ReplyNode; depth: number
         </div>
       )}
     </li>
+  );
+}
+
+/** Editing your reply: its words and its photos. It has to keep one or the other. */
+function EditReplyForm({ node, onDone, onCancel }: { node: ReplyNode; onDone: () => void; onCancel: () => void }) {
+  const [draft, setDraft] = React.useState(node.body);
+  const [saving, setSaving] = React.useState(false);
+  const photos = usePhotoDrafts(node.photos);
+  const blocked = photos.uploading || photos.failed;
+  const hasSomething = draft.trim().length > 0 || photos.ids.length > 0;
+
+  async function save() {
+    if (saving || blocked || !hasSomething) return;
+    const body = draft.trim();
+    const samePhotos = photos.ids.join() === node.photos.map((p) => p.id).join();
+    if (body === node.body && samePhotos) return onCancel();
+    setSaving(true);
+    const result = await runAction(editIdeaAction({ id: node.id, body, photoIds: photos.ids }));
+    setSaving(false);
+    if (result.ok) onDone();
+  }
+
+  return (
+    <div className="mt-1.5 grid gap-2">
+      <PostBox
+        value={draft}
+        onChange={setDraft}
+        onSubmit={() => void save()}
+        onCancel={onCancel}
+        label="Edit your reply"
+        autoFocus
+        disabled={saving}
+      />
+      <PhotoDraftStrip photos={photos} disabled={saving} />
+      <div className="flex flex-wrap items-center gap-2">
+        <AddPhotosButton photos={photos} disabled={saving} />
+        <Button type="button" size="sm" onClick={() => void save()} disabled={saving || blocked || !hasSomething} aria-busy={saving || undefined} className="ml-auto">
+          {saving ? "Saving…" : "Save"}
+        </Button>
+        <Button type="button" size="sm" variant="ghost" onClick={onCancel} disabled={saving}>
+          Cancel
+        </Button>
+      </div>
+    </div>
   );
 }

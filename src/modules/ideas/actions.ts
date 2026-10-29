@@ -15,7 +15,12 @@ import { idSchema } from "@/modules/tasks/validation";
   A refusal is { ok:false, code:"FORBIDDEN" }.
 */
 
-export async function shareIdeaAction(input: { title: string; body?: string }): Promise<ActionResult<{ id: string }>> {
+/** `photoIds` come from uploading to /api/ideas/photos first. */
+export async function shareIdeaAction(input: {
+  title: string;
+  body?: string;
+  photoIds?: string[];
+}): Promise<ActionResult<{ id: string }>> {
   return asActor((actor) => withInput(shareIdeaSchema, input, (data) => ideas.shareIdea(actor, data)));
 }
 
@@ -23,8 +28,11 @@ export async function shareIdeaAction(input: { title: string; body?: string }): 
 export async function replyToIdeaAction(
   parentId: string,
   body: string,
+  photoIds: string[] = [],
 ): Promise<ActionResult<{ id: string; rootId: string }>> {
-  return asActor((actor) => withInput(replySchema, { parentId, body }, (data) => ideas.replyToIdea(actor, data)));
+  return asActor((actor) =>
+    withInput(replySchema, { parentId, body, photoIds }, (data) => ideas.replyToIdea(actor, data)),
+  );
 }
 
 /** Only the fields present change; a title is an idea's alone. */
@@ -32,9 +40,10 @@ export async function editIdeaAction(input: {
   id: string;
   title?: string;
   body?: string;
+  photoIds?: string[];
 }): Promise<ActionResult<{ id: string }>> {
   // Picked field by field: `input` comes off the wire and may not be an object at all.
-  const raw = { id: input?.id, title: input?.title, body: input?.body };
+  const raw = { id: input?.id, title: input?.title, body: input?.body, photoIds: input?.photoIds };
   return asActor((actor) => withInput(editIdeaSchema, raw, (data) => ideas.editIdea(actor, data)));
 }
 

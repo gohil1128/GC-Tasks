@@ -78,6 +78,7 @@ model User {
   pushSubscriptions  PushSubscription[]
   ideas              Idea[]
   ideaVotes          IdeaVote[]
+  ideaPhotos         IdeaPhoto[]
   passwordResetCodes PasswordResetCode[]
   emailChange        EmailChangeRequest?
   teamEvents         TeamEvent[]
@@ -346,15 +347,41 @@ model Idea {
   // replies is removed outright instead.
   deletedAt DateTime?
 
-  parent  Idea?      @relation("IdeaReplies", fields: [parentId], references: [id], onDelete: Cascade)
-  replies Idea[]     @relation("IdeaReplies")
-  root    Idea?      @relation("IdeaThread", fields: [rootId], references: [id], onDelete: Cascade)
-  thread  Idea[]     @relation("IdeaThread")
-  author  User       @relation(fields: [authorId], references: [id])
+  parent  Idea?       @relation("IdeaReplies", fields: [parentId], references: [id], onDelete: Cascade)
+  replies Idea[]      @relation("IdeaReplies")
+  root    Idea?       @relation("IdeaThread", fields: [rootId], references: [id], onDelete: Cascade)
+  thread  Idea[]      @relation("IdeaThread")
+  author  User        @relation(fields: [authorId], references: [id])
   votes   IdeaVote[]
+  photos  IdeaPhoto[]
 
   @@index([parentId])
   @@index([rootId])
+}
+
+// A photo on an idea or a reply. Uploaded before the post exists (ideaId
+// null until it is shared, and cleaned up after a day if it never is), then
+// attached in the same write that creates or edits the post. Shrunk on the
+// phone first, so `bytes` is a few hundred KB of JPEG, PNG or WebP — checked
+// by its first bytes on the way in, never trusted from the browser's word.
+model IdeaPhoto {
+  id         String   @id @default(cuid())
+  ideaId     String?
+  uploaderId String
+  mime       String
+  width      Int
+  height     Int
+  size       Int
+  // Order within the post, from 0.
+  position   Int      @default(0)
+  bytes      Bytes
+  createdAt  DateTime @default(now())
+
+  idea     Idea? @relation(fields: [ideaId], references: [id], onDelete: Cascade)
+  uploader User  @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+
+  @@index([ideaId])
+  @@index([uploaderId, ideaId])
 }
 
 // One upvote, by one person, on one idea or reply. The key makes a second

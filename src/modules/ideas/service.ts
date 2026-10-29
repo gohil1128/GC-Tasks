@@ -11,6 +11,7 @@ import {
 } from "@/lib/permissions";
 import { asFailure, readRevision, refuse } from "@/modules/tasks/revision";
 import type { ActionResult } from "@/modules/tasks/types";
+import { countPostPhotos, setPostPhotos, wipePostPhotos } from "@/modules/ideas/photos";
 import type { DeleteIdeaResult, VoteResult } from "@/modules/ideas/types";
 import type { EditIdeaData, ReplyData, ShareIdeaData, VoteData } from "@/modules/ideas/validation";
 
@@ -52,7 +53,7 @@ const MSG = {
   inactive: "Your account is no longer active.",
   clashed: "Someone else changed this thread at the same moment. Try again.",
   noTitleOnReply: "Replies don't have a title.",
-  emptyReply: "A reply needs some words. Delete it instead if you want it gone.",
+  emptyReply: "A reply needs some words or a photo. Delete it instead if you want it gone.",
 } as const;
 
 /** The acting person as they stand now, their row held until the write commits. */
@@ -130,6 +131,7 @@ export async function shareIdea(actor: Actor, input: ShareIdeaData): Promise<Act
       data: { authorId: actor.id, title: input.title, body: input.body },
       select: { id: true },
     });
+    if (input.photoIds.length > 0) await setPostPhotos(tx, actor.id, idea.id, input.photoIds);
     return { id: idea.id };
   });
 }
@@ -148,6 +150,7 @@ export async function replyToIdea(
       data: { authorId: actor.id, parentId: parent.id, rootId, body: input.body },
       select: { id: true },
     });
+    if (input.photoIds.length > 0) await setPostPhotos(tx, actor.id, reply.id, input.photoIds);
     return { id: reply.id, rootId };
   });
 }
@@ -160,10 +163,14 @@ export async function editIdea(actor: Actor, input: EditIdeaData): Promise<Actio
     if (!canEditIdea(actor, access(post))) refuse("FORBIDDEN", "You can only edit what you wrote.");
     const isReply = post.parentId !== null;
     if (isReply && input.title !== undefined) refuse("INVALID", MSG.noTitleOnReply);
-    if (isReply && input.body === "") refuse("INVALID", MSG.emptyReply);
     const retitle = input.title !== undefined && input.title !== post.title;
     const reword = input.body !== undefined && input.body !== post.body;
-    if (!retitle && !reword) return { id: post.id };
+    const rephoto = input.photoIds !== undefined && (await setPostPhotos(tx, actor.id, post.id, input.photoIds));
+    // A reply has to keep something in it: words or a photo.
+    if (isReply && (input.body ?? post.body) === "" && (await countPostPhotos(tx, post.id)) === 0) {
+      refuse("INVALID", MSG.emptyReply);
+    }
+    if (!retitle && !reword && !rephoto) return { id: post.id };
     await tx.idea.update({
       where: { id: post.id },
       data: {
@@ -194,6 +201,8 @@ export async function deleteIdea(actor: Actor, id: string): Promise<ActionResult
         data: { deletedAt: new Date(), body: "" },
         select: { id: true },
       });
+      // Its photos go with its words; the post stays only to hold its replies' place.
+      await wipePostPhotos(tx, post.id);
       return { id: post.id, removed: false, ideaGone: false };
     }
 

@@ -16,6 +16,9 @@ export type IdeaAuthor = {
   avatar: string | null;
 };
 
+/** A photo on a post: served from /api/ideas/photos/{id}; the size is for laying it out before it loads. */
+export type IdeaPhoto = { id: string; width: number; height: number };
+
 export const IDEA_SORTS = ["top", "new"] as const;
 export type IdeaSort = (typeof IDEA_SORTS)[number];
 
@@ -39,6 +42,9 @@ export type IdeaSummary = {
   upvotedByMe: boolean;
   /** Replies at any depth that have not been deleted. */
   replyCount: number;
+  /** The idea's first photo, shown small beside it in the list; null when it has none. */
+  cover: IdeaPhoto | null;
+  photoCount: number;
 };
 
 /** An idea or one reply, as the thread page shows it. */
@@ -57,6 +63,8 @@ export type IdeaPost = {
   deleted: boolean;
   upvotes: number;
   upvotedByMe: boolean;
+  /** In order; empty when it has none or was deleted. */
+  photos: IdeaPhoto[];
 };
 
 /** A reply with the replies to it, already sorted (see ./thread.ts). */

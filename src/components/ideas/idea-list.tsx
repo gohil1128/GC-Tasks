@@ -1,11 +1,12 @@
 "use client";
 import Link from "next/link";
-import { Lightbulb, MessageSquare } from "lucide-react";
+import { Lightbulb, MessageSquare, Image as ImageIcon } from "lucide-react";
 import { useNow } from "@/components/task/hooks";
 import { canVoteIdea } from "@/lib/permissions";
 import { cn } from "@/lib/utils";
 import { IDEA_SORTS, IDEA_SORT_LABEL, type IdeaSort, type IdeaSummary } from "@/modules/ideas/types";
 import { Byline, DELETED, VoteButton } from "./bits";
+import { photoUrl } from "./photo-upload";
 
 /** Top / New, as links so the choice lives in the URL and survives a refresh. */
 export function SortToggle({ sort }: { sort: IdeaSort }) {
@@ -92,8 +93,25 @@ export function IdeaList({ ideas, meId, actorRole }: { ideas: IdeaSummary[]; meI
             <p className="mt-2.5 flex items-center gap-1.5 text-xs font-medium text-muted-foreground">
               <MessageSquare className="h-3.5 w-3.5" aria-hidden />
               {idea.replyCount === 0 ? "No replies yet" : `${idea.replyCount} ${idea.replyCount === 1 ? "reply" : "replies"}`}
+              {idea.photoCount > 0 && (
+                <span className="inline-flex items-center gap-1 pl-2">
+                  <ImageIcon className="h-3.5 w-3.5" aria-hidden />
+                  {idea.photoCount}
+                  <span className="sr-only">{idea.photoCount === 1 ? "photo" : "photos"}</span>
+                </span>
+              )}
             </p>
           </div>
+          {idea.cover && (
+            // eslint-disable-next-line @next/next/no-img-element -- private photos behind sign-in
+            <img
+              src={photoUrl(idea.cover.id)}
+              alt=""
+              loading="lazy"
+              decoding="async"
+              className="h-16 w-16 shrink-0 self-center rounded-xl border border-border object-cover sm:h-20 sm:w-20"
+            />
+          )}
         </li>
       ))}
     </ul>

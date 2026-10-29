@@ -25,6 +25,7 @@ function post(over: Partial<IdeaPost> & { id: string }): IdeaPost {
     deleted: false,
     upvotes: 0,
     upvotedByMe: false,
+    photos: [],
     ...over,
   };
 }
