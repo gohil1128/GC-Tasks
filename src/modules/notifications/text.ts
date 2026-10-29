@@ -8,6 +8,14 @@ import type { PendingActivity } from "@/modules/notifications/context";
   entries a write just captured). Pure and client-safe, like activity.ts.
 */
 
+const COMMENT_SNIPPET_MAX = 140;
+
+/** A comment as one short line for the notification, so the words arrive with the news. */
+export function commentSnippet(body: string): string {
+  const flat = body.replace(/\s+/g, " ").trim();
+  return flat.length > COMMENT_SNIPPET_MAX ? `${flat.slice(0, COMMENT_SNIPPET_MAX - 1).trimEnd()}…` : flat;
+}
+
 /**
  * The activity's sentence, with one wording change from the task history:
  * a move INTO Done is the board's "finished" moment, so it says so —
@@ -19,6 +27,10 @@ export function notificationSentence(
 ): string {
   if (activity.type === "moved" && activity.detail?.to === "DONE") {
     return "completed this task";
+  }
+  if (activity.type === "commented") {
+    const said = typeof activity.detail?.snippet === "string" ? activity.detail.snippet : "";
+    return said ? `commented: “${said}”` : "commented";
   }
   return describeActivity(activity, nameOf);
 }

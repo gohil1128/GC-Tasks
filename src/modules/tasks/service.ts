@@ -26,6 +26,7 @@ import {
 } from "@/modules/tasks/mappers";
 import { insertionIndex, placeInColumn, positionBetween, rebalancedPositions } from "@/modules/tasks/position";
 import { captureActivity } from "@/modules/notifications/context";
+import { commentSnippet } from "@/modules/notifications/text";
 import { readTaskDetail } from "@/modules/tasks/queries";
 import { boardWrite, changed, refuse, unchanged } from "@/modules/tasks/revision";
 import { toVisibility, visibilitySelect } from "@/modules/tasks/visibility";
@@ -626,7 +627,7 @@ export async function addComment(actor: Actor, input: AddCommentData): Promise<A
       data: { taskId: task.id, authorId: actor.id, body: input.body },
       select: commentSelect,
     });
-    await log(tx, task.id, actor.id, [["commented"]]);
+    await log(tx, task.id, actor.id, [["commented", { snippet: commentSnippet(input.body) }]]);
     return changed(toComment(comment));
   });
 }

@@ -443,6 +443,7 @@ describe.skipIf(!RUN)("task service (Postgres)", () => {
       expect(detail?.checklist.map((i) => i.text)).toEqual(["One", "Two", "Three"]);
       expect(detail?.comments.map((x) => x.body)).toEqual(["First", "Second"]);
       expect(detail?.activity[0].type).toBe("commented");
+      expect(detail?.activity[0].detail).toEqual({ snippet: "Second" });
       expect(detail?.activity.at(-1)?.type).toBe("created");
       expect(detail?.activity.find((a) => a.type === "checklist_checked")?.detail).toEqual({ text: "One" });
     });

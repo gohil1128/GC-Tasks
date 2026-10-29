@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  commentSnippet,
   notificationSentence,
   notificationText,
   pickPushEntry,
@@ -33,6 +34,9 @@ describe("notificationSentence", () => {
     );
     expect(notificationSentence(dto("created"), nameOf)).toBe("created this task");
     expect(notificationSentence(dto("commented"), nameOf)).toBe("commented");
+    expect(notificationSentence(dto("commented", { snippet: "Out of oat milk" }), nameOf)).toBe(
+      "commented: “Out of oat milk”",
+    );
   });
 });
 
@@ -78,5 +82,14 @@ describe("teamEventSentence", () => {
 
   it("still reads for a type this build does not know", () => {
     expect(teamEventSentence("something-new")).toBe("changed the team");
+  });
+});
+
+describe("commentSnippet", () => {
+  it("flattens whitespace and cuts long comments", () => {
+    expect(commentSnippet("  Out of\n\n oat   milk ")).toBe("Out of oat milk");
+    const long = commentSnippet("x".repeat(500));
+    expect(long.length).toBe(140);
+    expect(long.endsWith("…")).toBe(true);
   });
 });
