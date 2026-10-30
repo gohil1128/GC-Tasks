@@ -222,6 +222,7 @@ export function SortableTaskCard({ card, draggable }: { card: TaskCardData; drag
         {...(canDrag ? attributes : {})}
         {...(canDrag ? listeners : {})}
         role="button"
+        data-task-card={card.id}
         tabIndex={pending ? -1 : 0}
         aria-labelledby={ids.title}
         aria-describedby={describedBy || undefined}

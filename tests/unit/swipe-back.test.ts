@@ -39,10 +39,11 @@ describe("slideOffMs", () => {
 */
 type Handler = (event: never) => void;
 
-function fakeSheet(clientWidth = 360) {
+function fakeSheet(clientWidth = 360, clientHeight = 640) {
   const handlers = new Map<string, Set<Handler>>();
   return {
     clientWidth,
+    clientHeight,
     style: {} as Record<string, string>,
     addEventListener(type: string, fn: Handler) {
       if (!handlers.has(type)) handlers.set(type, new Set());
@@ -180,6 +181,37 @@ describe("attachSwipeBack", () => {
     vi.advanceTimersByTime(200);
     expect(sheet.style.animation).toBe("none");
     expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("a zooming sheet shrinks into a card under the finger and hands over straight away", () => {
+    const sheet = fakeSheet();
+    const onBack = vi.fn();
+    attachSwipeBack(sheet as unknown as HTMLElement, onBack, undefined, { zoom: true });
+
+    sheet.fire("touchstart", touchEvent(10, 100));
+    sheet.fire("touchmove", touchEvent(140, 104));
+    const scale = Number(/scale\(([\d.]+)\)/.exec(sheet.style.transform)?.[1]);
+    expect(scale).toBeLessThan(1);
+    expect(scale).toBeGreaterThan(0.6);
+    expect(sheet.style.clipPath).toMatch(/round/);
+
+    // No slide first: the dialog's zoom close takes it from here.
+    sheet.fire("touchend", touchEvent(140, 104));
+    expect(sheet.style.animation).toBe("none");
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("a zooming sheet springs back to full size on a short swipe", () => {
+    const sheet = fakeSheet();
+    const onBack = vi.fn();
+    attachSwipeBack(sheet as unknown as HTMLElement, onBack, undefined, { zoom: true });
+
+    sheet.fire("touchstart", touchEvent(10, 100));
+    sheet.fire("touchmove", touchEvent(50, 102));
+    sheet.fire("touchend", touchEvent(50, 102));
+    expect(sheet.style.transform).toBe("translate(0px, 0px) scale(1)");
+    vi.advanceTimersByTime(500);
+    expect(onBack).not.toHaveBeenCalled();
   });
 
   it("springs back when the close is refused", () => {

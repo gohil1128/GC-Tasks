@@ -1,4 +1,5 @@
 import * as React from "react";
+import { dragFrame } from "@/components/ui/zoom-transition";
 
 /*
   Swipe right to go back, phone-style: the sheet follows the finger in
@@ -10,6 +11,11 @@ import * as React from "react";
   Phone sheets only: from `sm` up the dialog is a centred card whose
   position comes from a CSS translate, which an inline drag transform
   would fight — the gesture simply does not arm there.
+
+  A sheet that zooms (the task sheet, see zoom-transition.ts) swipes the
+  iOS way instead: it shrinks into a rounded card that follows the finger,
+  and on release the dialog's close flies that card back into the task's
+  card on the board — so the swipe and the landing read as one movement.
 
   Wiring lesson (the Oct 22 bug): the listeners must attach when the
   sheet MOUNTS, not when the page loads — a dialog's content does not
@@ -48,7 +54,14 @@ const VELOCITY_WINDOW_MS = 100;
 const SLIDE_EASING = "cubic-bezier(0.32, 0.72, 0.35, 1)";
 
 /** Attach the gesture to a sheet element; returns the detach function. */
-export function attachSwipeBack(el: HTMLElement, onBack: () => void, canGoBack: () => boolean = () => true): () => void {
+export type SwipeBackOptions = { zoom?: boolean };
+
+export function attachSwipeBack(
+  el: HTMLElement,
+  onBack: () => void,
+  canGoBack: () => boolean = () => true,
+  { zoom = false }: SwipeBackOptions = {},
+): () => void {
   let start: { x: number; y: number } | null = null;
   let mode: "pending" | "drag" | "scroll" = "pending";
   let lastDx = 0;
@@ -108,7 +121,12 @@ export function attachSwipeBack(el: HTMLElement, onBack: () => void, canGoBack: 
     lastDx = Math.max(0, dx);
     samples.push({ t: now(event), x: touch.clientX });
     if (samples.length > 20) samples = samples.slice(-20);
-    el.style.transform = `translateX(${lastDx}px)`;
+    if (zoom) {
+      el.style.transformOrigin = "0 0";
+      Object.assign(el.style, dragFrame({ left: 0, top: 0, width: el.clientWidth, height: el.clientHeight }, lastDx, dy));
+    } else {
+      el.style.transform = `translateX(${lastDx}px)`;
+    }
     const bd = backdrop();
     if (bd) bd.style.opacity = String(Math.max(0, 1 - lastDx / Math.max(el.clientWidth, 1)));
   };
@@ -122,7 +140,28 @@ export function attachSwipeBack(el: HTMLElement, onBack: () => void, canGoBack: 
     mode = "pending";
     if (!wasDrag) return;
 
-    if (isBackSwipe(dx, vx) && canGoBack()) {
+    if (zoom && isBackSwipe(dx, vx) && canGoBack()) {
+      // Left where the finger let go: the close flies it home from there.
+      // The CSS exit animation goes first, as below.
+      el.style.animation = "none";
+      onBack();
+    } else if (zoom) {
+      const bd = backdrop();
+      el.style.transition = `transform 280ms ${SLIDE_EASING}, clip-path 280ms ${SLIDE_EASING}`;
+      el.style.transform = "translate(0px, 0px) scale(1)";
+      el.style.clipPath = "inset(0px 0px 0px 0px round 0px)";
+      if (bd) {
+        bd.style.transition = `opacity 280ms ${SLIDE_EASING}`;
+        bd.style.opacity = "";
+      }
+      window.setTimeout(() => {
+        el.style.transition = "";
+        el.style.transform = "";
+        el.style.clipPath = "";
+        el.style.transformOrigin = "";
+        if (bd) bd.style.transition = "";
+      }, 300);
+    } else if (isBackSwipe(dx, vx) && canGoBack()) {
       // Complete the slide the finger started, then hand over to the
       // dialog's own close once the sheet is (nearly) off screen. The
       // exit animation is switched off first: a CSS animation outranks
@@ -178,7 +217,12 @@ export function attachSwipeBack(el: HTMLElement, onBack: () => void, canGoBack: 
   the element's ref — `ref={swipeRef}` — so the gesture arms the moment
   the sheet mounts and disarms when it unmounts.
 */
-export function useSwipeBack(onBack: () => void, canGoBack: () => boolean = () => true) {
+export function useSwipeBack(
+  onBack: () => void,
+  canGoBack: () => boolean = () => true,
+  options: SwipeBackOptions = {},
+) {
+  const zoom = options.zoom ?? false;
   const onBackRef = React.useRef(onBack);
   onBackRef.current = onBack;
   const canGoBackRef = React.useRef(canGoBack);
@@ -195,6 +239,8 @@ export function useSwipeBack(onBack: () => void, canGoBack: () => boolean = () =
 
   return React.useCallback((node: HTMLElement | null) => {
     detachRef.current?.();
-    detachRef.current = node ? attachSwipeBack(node, () => onBackRef.current(), () => canGoBackRef.current()) : null;
-  }, []);
+    detachRef.current = node
+      ? attachSwipeBack(node, () => onBackRef.current(), () => canGoBackRef.current(), { zoom })
+      : null;
+  }, [zoom]);
 }
