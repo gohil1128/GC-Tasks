@@ -2,279 +2,286 @@ import * as React from "react";
 import type { AnimalKey } from "@/lib/avatars";
 
 /*
-  The animal chai club, futuristic edition: each animal is a faceted,
-  low-poly head on a 48x48 grid — lit from the top left, so the left
-  facets are the light tone and the right ones the shade — with glowing
-  eyes and a glassy sheen over the whole disc.
-
-  Drawn to stay distinct at 20px: the silhouette (ears, mane, tufts) and
-  the head's own colour carry the species; facets and glow are the finish
-  you see at full size. The person's colour shows through as the circle
-  behind them (the Avatar root paints it), so the art keeps transparent
-  corners, with only a soft light behind the head to lift it off any
-  colour.
+  The animal chai club artwork: flat SVG animals on a 48x48 grid, drawn to
+  stay distinct at 20px — species silhouette first (ears, mane, eye bumps),
+  markings second, expression third — the wild crew keep the expressions
+  they actually wear (calm, regal, jowly), never cartoon anger. Every
+  animal holds the same little kulhad. The person's colour shows through
+  as the circle behind
+  them (the Avatar root paints it), so the art itself is transparent.
 */
 
-type Pt = readonly [number, number];
-type Tone = { hi: string; mid: string; lo: string };
+const INK = "#43302E";
 
-const INK = "#17142A";
-
-const pts = (p: readonly Pt[]) => p.map(([x, y]) => `${x},${y}`).join(" ");
-const flip = (p: readonly Pt[]): Pt[] => p.map(([x, y]) => [48 - x, y] as const);
-
-/** A facet; the hairline stroke in its own colour hides the seam with its neighbour. */
-function F({ p, fill, opacity }: { p: readonly Pt[]; fill: string; opacity?: number }) {
-  return <polygon points={pts(p)} fill={fill} stroke={fill} strokeWidth={0.35} strokeLinejoin="round" opacity={opacity} />;
-}
-
-/** A shape and its mirror image: the left lit, the right in shade. */
-function Pair({ p, left, right }: { p: readonly Pt[]; left: string; right?: string }) {
+function Kulhad({ paw }: { paw: string }) {
   return (
-    <>
-      <F p={p} fill={left} />
-      <F p={flip(p)} fill={right ?? left} />
-    </>
+    <g>
+      <g stroke="#FFF7EA" strokeWidth="1.1" strokeLinecap="round" fill="none" opacity="0.9">
+        <path d="M21.3 34.6c.9-1.2-.7-1.9 0-3.2" />
+        <path d="M26.7 34.6c-.9-1.2.7-1.9 0-3.2" />
+      </g>
+      <ellipse cx="17.4" cy="40.6" rx="2.1" ry="2.7" fill={paw} />
+      <ellipse cx="30.6" cy="40.6" rx="2.1" ry="2.7" fill={paw} />
+      <path d="M18.6 37.6h10.8l-.9 6.1a2 2 0 0 1-2 1.7h-5a2 2 0 0 1-2-1.7l-.9-6.1Z" fill="#C07A3E" />
+      <ellipse cx="24" cy="37.6" rx="5.4" ry="1.7" fill="#A8622C" />
+      <ellipse cx="24" cy="37.4" rx="4.4" ry="1.2" fill="#7C4A21" />
+    </g>
   );
 }
 
-/*
-  The shared head: eight facets around a centre, its width and chin set
-  per animal. Top-left facets take the highlight, bottom-right the shade.
-*/
-function Head({ tone, w = 1, top = 11, chin = 38.5 }: { tone: Tone; w?: number; top?: number; chin?: number }) {
-  const C: Pt = [24, 26];
-  const T: Pt = [24, top];
-  const UL: Pt = [24 - 11 * w, 16];
-  const L: Pt = [24 - 13 * w, 26];
-  const CL: Pt = [24 - 7.5 * w, 35.5];
-  const B: Pt = [24, chin];
-  const UR: Pt = [24 + 11 * w, 16];
-  const R: Pt = [24 + 13 * w, 26];
-  const CR: Pt = [24 + 7.5 * w, 35.5];
+function Blush({ y = 27.5 }: { y?: number }) {
   return (
-    <>
-      <F p={[T, UL, C]} fill={tone.hi} />
-      <F p={[T, UR, C]} fill={tone.mid} />
-      <F p={[UL, L, C]} fill={tone.mid} />
-      <F p={[UR, R, C]} fill={tone.lo} />
-      <F p={[L, CL, C]} fill={tone.hi} />
-      <F p={[R, CR, C]} fill={tone.lo} />
-      <F p={[CL, B, C]} fill={tone.mid} />
-      <F p={[CR, B, C]} fill={tone.lo} />
-      {/* Rim light along the lit edge. */}
-      <polyline
-        points={pts([L, UL, T])}
-        fill="none"
-        stroke="#FFFFFF"
-        strokeOpacity={0.45}
-        strokeWidth={0.6}
-        strokeLinejoin="round"
-        strokeLinecap="round"
-      />
-    </>
+    <g fill="#F2A18A" opacity="0.75">
+      <circle cx="14.6" cy={y} r="1.8" />
+      <circle cx="33.4" cy={y} r="1.8" />
+    </g>
   );
 }
 
-/** Glowing eyes: a soft halo, a bright lens, a hot core. */
-function Eyes({ glow, y = 24, dx = 5.4, tilt = 12, rx = 2, ry = 1.25 }: { glow: string; y?: number; dx?: number; tilt?: number; rx?: number; ry?: number }) {
-  return (
-    <>
-      {[-1, 1].map((side) => {
-        const cx = 24 + side * dx;
-        return (
-          <g key={side} transform={`rotate(${side * tilt} ${cx} ${y})`}>
-            <ellipse cx={cx} cy={y} rx={rx + 1.4} ry={ry + 1.2} fill={glow} opacity={0.3} />
-            <ellipse cx={cx} cy={y} rx={rx} ry={ry} fill={glow} />
-            <ellipse cx={cx - side * 0.3} cy={y - 0.2} rx={rx * 0.45} ry={ry * 0.45} fill="#FFFFFF" />
-          </g>
-        );
-      })}
-    </>
-  );
+function Body({ color }: { color: string }) {
+  return <path d="M7.5 48a16.5 11 0 0 1 33 0Z" fill={color} />;
 }
-
-function Nose({ x = 24, y = 29.6, w = 1.6, h = 2, fill = INK }: { x?: number; y?: number; w?: number; h?: number; fill?: string }) {
-  return <F p={[[x - w, y], [x + w, y], [x, y + h]]} fill={fill} />;
-}
-
-// ── The crew ─────────────────────────────────────────────────────────────────
-
-const GLOW = {
-  cyan: "#6FF3FF",
-  mint: "#7CFFC4",
-  gold: "#FFE27A",
-  amber: "#FFC24D",
-  pink: "#FF9FD2",
-  ice: "#B4F4FF",
-};
 
 const ART: Record<AnimalKey, React.ReactNode> = {
   fox: (
     <>
-      <Pair p={[[12.5, 18], [14, 4.5], [17, 15]]} left="#FF9A4D" right="#C9561B" />
-      <Pair p={[[14, 4.5], [21, 13], [17, 15]]} left="#F07A2C" right="#B24A14" />
-      <Pair p={[[14.8, 15], [15.1, 8.6], [18.4, 12.8]]} left="#FFE1C4" right="#F2C29C" />
-      <Head tone={{ hi: "#FF9A4D", mid: "#F07A2C", lo: "#C9561B" }} />
-      <F p={[[16.5, 29], [24, 29.6], [24, 38.5]]} fill="#FFF6EC" />
-      <F p={[[31.5, 29], [24, 29.6], [24, 38.5]]} fill="#E9DCCF" />
-      <Eyes glow={GLOW.cyan} tilt={16} />
-      <Nose />
+      <Body color="#C85A24" />
+      <path d="M11 17.5 13.4 5.5 21 12Z" fill="#E07B39" />
+      <path d="M37 17.5 34.6 5.5 27 12Z" fill="#E07B39" />
+      <path d="M13.4 14.8 14.7 9.2l3.8 3.4Z" fill="#F6C39A" />
+      <path d="M34.6 14.8 33.3 9.2l-3.8 3.4Z" fill="#F6C39A" />
+      <circle cx="24" cy="23" r="12.5" fill="#E8833A" />
+      <ellipse cx="24" cy="28.5" rx="7.5" ry="5.5" fill="#FFF1DC" />
+      <g stroke={INK} strokeWidth="1.5" strokeLinecap="round" fill="none">
+        <path d="M15.5 22q2.5-2.6 5 0" />
+        <path d="M27.5 22q2.5-2.6 5 0" />
+        <path d="M22.2 29.2q1.8 1.6 3.6 0" />
+      </g>
+      <ellipse cx="24" cy="26.6" rx="1.8" ry="1.3" fill={INK} />
+      <Blush />
+      <path d="M11.8 33.2q12.2 5 24.4 0l0 3.8q-12.2 4.4-24.4 0Z" fill="#B3492E" />
+      <Kulhad paw="#E8833A" />
     </>
   ),
   panda: (
     <>
-      <Pair p={[[9, 11.5], [12, 7.5], [16.5, 8.5], [18, 13], [13.5, 17]]} left="#34323F" right="#22212B" />
-      <Head tone={{ hi: "#FFFFFF", mid: "#EEF0F6", lo: "#D3D7E3" }} />
-      <Pair p={[[14.2, 21], [20.4, 20.6], [21.4, 26.6], [15.6, 28.6]]} left="#2B2936" right="#1F1E28" />
-      <Eyes glow={GLOW.mint} y={24} dx={6} tilt={-14} rx={1.7} ry={1.1} />
-      <Nose y={29.4} w={1.4} h={1.7} />
-      <Pair p={[[13, 30.5], [15.4, 30.2], [14.4, 32]]} left="#FF9EC7" />
+      <Body color="#3E3A38" />
+      <circle cx="12.5" cy="12.5" r="4.6" fill="#3E3A38" />
+      <circle cx="35.5" cy="12.5" r="4.6" fill="#3E3A38" />
+      <circle cx="24" cy="23" r="12.5" fill="#FFFFFF" stroke="#E7DCCB" strokeWidth="0.8" />
+      <ellipse cx="18" cy="22.5" rx="3" ry="4.4" fill="#3E3A38" transform="rotate(18 18 22.5)" />
+      <ellipse cx="30" cy="22.5" rx="3" ry="4.4" fill="#3E3A38" transform="rotate(-18 30 22.5)" />
+      <circle cx="18" cy="22.3" r="1.7" fill="#FFFFFF" />
+      <circle cx="30" cy="22.3" r="1.7" fill="#FFFFFF" />
+      <circle cx="18" cy="22.3" r="0.95" fill="#2B2725" />
+      <circle cx="30" cy="22.3" r="0.95" fill="#2B2725" />
+      <ellipse cx="24" cy="26.6" rx="1.6" ry="1.1" fill="#3E3A38" />
+      <path d="M22.4 29q1.6 1.4 3.2 0" stroke={INK} strokeWidth="1.3" strokeLinecap="round" fill="none" />
+      <g fill="#F7C8D3" opacity="0.9">
+        <circle cx="14.4" cy="27.6" r="1.6" />
+        <circle cx="33.6" cy="27.6" r="1.6" />
+      </g>
+      <g fill="#F27D9D">
+        <path d="M34.2 10.6 29.8 7.4a2.4 2.4 0 1 0 0 6.2Z" />
+        <path d="M34.2 10.6l4.4-3.2a2.4 2.4 0 1 1 0 6.2Z" />
+        <circle cx="34.2" cy="10.6" r="1.5" />
+      </g>
+      <Kulhad paw="#3E3A38" />
     </>
   ),
   owl: (
     <>
-      <Pair p={[[12.2, 18.5], [11, 5], [19.5, 13.5]]} left="#B07E52" right="#7E5333" />
-      <Head tone={{ hi: "#C99A6B", mid: "#A87447", lo: "#7E5333" }} top={13} chin={39} />
-      <Pair
-        p={[[18.4, 18.2], [22.8, 20.2], [23.6, 24.6], [21.6, 28.8], [16.8, 29.6], [13.4, 26.4], [13.4, 21.4]]}
-        left="#F5E6CF"
-        right="#E1CDB2"
-      />
-      <Eyes glow={GLOW.amber} y={24} dx={5.4} tilt={0} rx={2.4} ry={2.4} />
-      <F p={[[22.5, 28], [25.5, 28], [24, 32.4]]} fill="#FFB13D" />
-      <g stroke="#7E5333" strokeWidth={0.7} strokeLinecap="round" fill="none" opacity={0.7}>
-        <polyline points="20,34.6 21.4,35.8 22.8,34.6" />
-        <polyline points="25.2,34.6 26.6,35.8 28,34.6" />
+      <Body color="#8A5A38" />
+      <ellipse cx="24" cy="25" rx="13" ry="13.5" fill="#9C6B4A" />
+      <ellipse cx="24" cy="31.5" rx="8" ry="6.8" fill="#D9B98C" />
+      <circle cx="18.5" cy="21" r="5.6" fill="#F3E3C2" />
+      <circle cx="29.5" cy="21" r="5.6" fill="#F3E3C2" />
+      <ellipse cx="24" cy="25" rx="6" ry="4.8" fill="#F3E3C2" />
+      <g stroke="#5A4028" strokeWidth="1.5" strokeLinecap="round" fill="none">
+        <path d="M15.8 21q2.7 2.4 5.4 0" />
+        <path d="M26.8 21q2.7 2.4 5.4 0" />
       </g>
+      <path d="M24 24.6l-2.1 2.7h4.2Z" fill="#E8A13C" />
+      <ellipse cx="11.6" cy="30" rx="2.6" ry="6" fill="#8A5A38" transform="rotate(12 11.6 30)" />
+      <ellipse cx="36.4" cy="30" rx="2.6" ry="6" fill="#8A5A38" transform="rotate(-12 36.4 30)" />
+      <path d="M11.2 17.6q12.8-12.8 25.6 0l-1.9 3.8q-10.9-9.6-21.8 0Z" fill="#5F7D4F" />
+      <circle cx="24" cy="6.4" r="3" fill="#5F7D4F" />
+      <Kulhad paw="#8A5A38" />
     </>
   ),
   cat: (
     <>
-      <Pair p={[[12.5, 18.5], [13.4, 6], [20.5, 13.5]]} left="#B9B3D6" right="#756DA2" />
-      <Pair p={[[14.6, 15.6], [15, 9.4], [18.4, 13.4]]} left="#F7C9E6" right="#E7AFD2" />
-      <Head tone={{ hi: "#B9B3D6", mid: "#9A93C2", lo: "#756DA2" }} />
-      <F p={[[19.4, 28.6], [24, 28.8], [24, 34.4]]} fill="#EFEBFA" />
-      <F p={[[28.6, 28.6], [24, 28.8], [24, 34.4]]} fill="#DCD6F0" />
-      <Eyes glow={GLOW.mint} tilt={14} rx={2.1} ry={1.15} />
-      <Nose y={28.8} w={1.3} h={1.6} fill="#FF7FB0" />
-      <g stroke={GLOW.mint} strokeWidth={0.5} strokeLinecap="round" opacity={0.85}>
-        <line x1="9.4" y1="28.2" x2="17.4" y2="29.6" />
-        <line x1="9.8" y1="31.8" x2="17.4" y2="30.8" />
-        <line x1="38.6" y1="28.2" x2="30.6" y2="29.6" />
-        <line x1="38.2" y1="31.8" x2="30.6" y2="30.8" />
+      <Body color="#75808D" />
+      <path d="M11.5 16.5 13 6l7.5 5.5Z" fill="#8E97A3" />
+      <path d="M36.5 16.5 35 6l-7.5 5.5Z" fill="#8E97A3" />
+      <path d="M13.6 13.8l.8-4.4 3.4 2.7Z" fill="#F2B8C6" />
+      <path d="M34.4 13.8l-.8-4.4-3.4 2.7Z" fill="#F2B8C6" />
+      <circle cx="24" cy="23" r="12.5" fill="#97A1AC" />
+      <g stroke="#6E7784" strokeWidth="1.6" strokeLinecap="round">
+        <path d="M20 12.4v3.4" />
+        <path d="M24 11.8v3.8" />
+        <path d="M28 12.4v3.4" />
       </g>
+      <ellipse cx="24" cy="28.8" rx="6.4" ry="4.6" fill="#EDF0F2" />
+      <circle cx="18" cy="23" r="1.5" fill={INK} />
+      <circle cx="30" cy="23" r="1.5" fill={INK} />
+      <g stroke="#D9A441" strokeWidth="1.5" fill="#FFFFFF" fillOpacity="0.12">
+        <circle cx="18" cy="23" r="4.8" />
+        <circle cx="30" cy="23" r="4.8" />
+        <path d="M22.8 22.4h2.4" fill="none" />
+      </g>
+      <path d="M22.9 26.4h2.2l-1.1 1.5Z" fill="#E88CA0" />
+      <g stroke="#C7CDD4" strokeWidth="1" strokeLinecap="round">
+        <path d="M7.8 26h5" />
+        <path d="M8.6 29.2l4.4-.8" />
+        <path d="M40.2 26h-5" />
+        <path d="M39.4 29.2l-4.4-.8" />
+      </g>
+      <Kulhad paw="#75808D" />
     </>
   ),
   bunny: (
     <>
-      <Pair p={[[16, 15], [14.2, 1.6], [19.6, 1.8], [21.4, 13.6]]} left="#FFFFFF" right="#D9D0E6" />
-      <Pair p={[[16.8, 12.6], [15.9, 4.4], [18.6, 4.5], [19.6, 12.2]]} left="#FFC2DA" right="#F2A8C6" />
-      <Head tone={{ hi: "#FFFFFF", mid: "#F1ECF7", lo: "#D9D0E6" }} top={13} />
-      <Eyes glow={GLOW.pink} y={24.4} tilt={0} rx={1.8} ry={1.8} />
-      <Nose y={29} w={1.2} h={1.4} fill="#FF7FB0" />
-      <Pair p={[[13, 29.6], [15.8, 29.4], [14.6, 31.4]]} left="#FFB8D6" />
-      <g stroke="#B9AECB" strokeWidth={0.55} strokeLinecap="round" fill="none">
-        <polyline points="22.2,31.6 24,32.6 25.8,31.6" />
+      <Body color="#D9CFC4" />
+      <ellipse cx="16.5" cy="9" rx="3.6" ry="8.5" fill="#FBF6EF" stroke="#E7DCCB" transform="rotate(-14 16.5 9)" />
+      <ellipse cx="31.5" cy="9" rx="3.6" ry="8.5" fill="#FBF6EF" stroke="#E7DCCB" transform="rotate(14 31.5 9)" />
+      <ellipse cx="16.9" cy="10" rx="1.8" ry="5.4" fill="#F5B8C4" transform="rotate(-14 16.9 10)" />
+      <ellipse cx="31.1" cy="10" rx="1.8" ry="5.4" fill="#F5B8C4" transform="rotate(14 31.1 10)" />
+      <circle cx="36.9" cy="15.8" r="1.3" fill="#E9B44C" />
+      <circle cx="24" cy="25" r="12" fill="#FBF6EF" stroke="#E7DCCB" strokeWidth="0.8" />
+      <circle cx="18.5" cy="24" r="1.5" fill={INK} />
+      <circle cx="29.5" cy="24" r="1.5" fill={INK} />
+      <path d="M22.9 27.2h2.2l-1.1 1.6Z" fill="#F28BB4" />
+      <path d="M24 28.8q0 1.9-2 2.1M24 28.8q0 1.9 2 2.1" stroke="#C98A94" strokeWidth="1.2" strokeLinecap="round" fill="none" />
+      <g fill="#F7C8D3">
+        <circle cx="14.8" cy="28.5" r="1.8" />
+        <circle cx="33.2" cy="28.5" r="1.8" />
       </g>
+      <Kulhad paw="#D9CFC4" />
     </>
   ),
   tiger: (
     <>
-      <Pair p={[[10.4, 15.4], [12, 9.6], [17.4, 9.8], [18.6, 13.4], [14.2, 17.6]]} left="#F28A2A" right="#C25F14" />
-      <Pair p={[[12.6, 14.6], [13.4, 11.4], [16.2, 11.6], [15.4, 14.8]]} left="#FFF3E0" right="#F1DFC6" />
-      <Head tone={{ hi: "#FFA54A", mid: "#F28A2A", lo: "#CF6516" }} w={1.04} />
-      <F p={[[15.4, 28.4], [24, 29], [24, 38.5]]} fill="#FFF6EC" />
-      <F p={[[32.6, 28.4], [24, 29], [24, 38.5]]} fill="#ECDCCB" />
-      <F p={[[24, 11.4], [22.4, 15.6], [24, 18.2], [25.6, 15.6]]} fill="#2A1A12" />
-      <Pair p={[[19.2, 13.4], [20.8, 13.2], [20.2, 17.2]]} left="#2A1A12" />
-      <Pair p={[[10.8, 22], [16.4, 23.2], [11.4, 24.8]]} left="#2A1A12" />
-      <Pair p={[[11.2, 27.4], [16.2, 27.8], [12, 30]]} left="#2A1A12" />
-      <Eyes glow={GLOW.cyan} y={23.6} tilt={10} />
-      <Nose y={29.4} w={1.8} h={2} fill="#3B2018" />
+      <Body color="#D97A26" />
+      <circle cx="12.5" cy="12.5" r="4.6" fill="#F09A3E" />
+      <circle cx="35.5" cy="12.5" r="4.6" fill="#F09A3E" />
+      <circle cx="12.5" cy="12.5" r="2.2" fill="#FFD9A8" />
+      <circle cx="35.5" cy="12.5" r="2.2" fill="#FFD9A8" />
+      <circle cx="24" cy="23" r="12.5" fill="#F49E45" />
+      <g stroke="#4A2C14" strokeWidth="2" strokeLinecap="round">
+        <path d="M20 11.6v3.8" />
+        <path d="M24 11v4.4" />
+        <path d="M28 11.6v3.8" />
+        <path d="M11.9 21.6l3.4 1.1" />
+        <path d="M12.3 25.8l3.2.5" />
+        <path d="M36.1 21.6l-3.4 1.1" />
+        <path d="M35.7 25.8l-3.2.5" />
+      </g>
+      <ellipse cx="24" cy="28.8" rx="7" ry="5" fill="#FFF1DC" />
+      <ellipse cx="24" cy="26.4" rx="1.9" ry="1.3" fill="#7A3B2E" />
+      <circle cx="18.5" cy="24" r="1.4" fill={INK} />
+      <circle cx="29.5" cy="24" r="1.4" fill={INK} />
+      <path d="M22 31.8q2 1.5 4 0" stroke={INK} strokeWidth="1.4" strokeLinecap="round" fill="none" />
+      <Kulhad paw="#D97A26" />
     </>
   ),
   lion: (
     <>
-      {/* The mane: a ring of spikes behind the head, alternately lit and shaded. */}
-      {Array.from({ length: 14 }, (_, i) => {
-        const a0 = (i / 14) * Math.PI * 2;
-        const a1 = ((i + 0.5) / 14) * Math.PI * 2;
-        const a2 = ((i + 1) / 14) * Math.PI * 2;
-        const at = (a: number, r: number): Pt => [24 + Math.cos(a) * r, 25.5 + Math.sin(a) * r];
-        const lit = Math.cos(a1 + Math.PI * 0.75) > 0;
-        return <F key={i} p={[at(a0, 12), at(a1, 19.5), at(a2, 12), [24, 25.5]]} fill={lit ? "#D9862A" : "#A65A18"} />;
-      })}
-      <Head tone={{ hi: "#FFD27A", mid: "#F2B85A", lo: "#D49A3E" }} w={0.9} top={12.5} chin={37.5} />
-      <F p={[[17.6, 28.6], [24, 29.2], [24, 37.5]]} fill="#FFF1D6" />
-      <F p={[[30.4, 28.6], [24, 29.2], [24, 37.5]]} fill="#EEDBB8" />
-      <Eyes glow={GLOW.gold} y={23.8} dx={5} tilt={8} rx={1.9} ry={1.15} />
-      <Nose y={29.2} w={1.7} h={2} fill="#5A2E14" />
+      <Body color="#B85E22" />
+      <g fill="#C96A26">
+        <circle cx="24" cy="23" r="15.5" />
+        <circle cx="24" cy="8.6" r="3.6" />
+        <circle cx="34.2" cy="11.4" r="3.6" />
+        <circle cx="38.6" cy="20" r="3.6" />
+        <circle cx="36.8" cy="29.6" r="3.6" />
+        <circle cx="11.2" cy="29.6" r="3.6" />
+        <circle cx="9.4" cy="20" r="3.6" />
+        <circle cx="13.8" cy="11.4" r="3.6" />
+      </g>
+      <circle cx="15" cy="13.5" r="2.6" fill="#F2C078" />
+      <circle cx="33" cy="13.5" r="2.6" fill="#F2C078" />
+      <circle cx="24" cy="23" r="10.8" fill="#F2C078" />
+      <ellipse cx="24" cy="27.8" rx="5.8" ry="4.2" fill="#FBE7C0" />
+      <ellipse cx="24" cy="25.8" rx="1.7" ry="1.2" fill="#7A3B2E" />
+      <circle cx="18.8" cy="23" r="1.3" fill={INK} />
+      <circle cx="29.2" cy="23" r="1.3" fill={INK} />
+      <path d="M22 30.4q2 1.5 4 0" stroke={INK} strokeWidth="1.3" strokeLinecap="round" fill="none" />
+      <Kulhad paw="#B85E22" />
     </>
   ),
   bulldog: (
     <>
-      <Head tone={{ hi: "#E8C9A4", mid: "#D2AE84", lo: "#B38C62" }} w={1.14} top={13} chin={38} />
-      <Pair p={[[10.4, 15.6], [7, 23.4], [12.6, 23], [15.6, 17]]} left="#8A6544" right="#6E4E33" />
-      <F p={[[13.6, 28.6], [24, 29], [24, 38], [17.4, 37]]} fill="#FFF6EC" />
-      <F p={[[34.4, 28.6], [24, 29], [24, 38], [30.6, 37]]} fill="#E9DCCF" />
-      <g stroke="#9C7754" strokeWidth={0.6} strokeLinecap="round" fill="none" opacity={0.8}>
-        <polyline points="19.6,17.6 24,16.4 28.4,17.6" />
-        <polyline points="21,19.6 24,18.8 27,19.6" />
+      <Body color="#A87F57" />
+      <ellipse cx="10.6" cy="15" rx="3.4" ry="5" fill="#8A6242" transform="rotate(18 10.6 15)" />
+      <ellipse cx="37.4" cy="15" rx="3.4" ry="5" fill="#8A6242" transform="rotate(-18 37.4 15)" />
+      <ellipse cx="24" cy="23" rx="13.5" ry="12" fill="#C8A075" />
+      <path d="M17.5 15.6q6.5-2.6 13 0" stroke="#A87F57" strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      <ellipse cx="24" cy="28.6" rx="8.6" ry="6" fill="#EBDCC4" />
+      <ellipse cx="24" cy="25" rx="3.2" ry="2" fill="#4A3A30" />
+      <circle cx="17.5" cy="21.6" r="1.3" fill="#3A2E26" />
+      <circle cx="30.5" cy="21.6" r="1.3" fill="#3A2E26" />
+      <g stroke="#A87F57" strokeWidth="1.7" strokeLinecap="round">
+        <path d="M13.6 19.9l6.8.9" />
+        <path d="M34.4 19.9l-6.8.9" />
       </g>
-      <Eyes glow={GLOW.cyan} y={23.8} dx={6.2} tilt={-6} rx={1.8} ry={1.2} />
-      <F p={[[21.6, 28.2], [26.4, 28.2], [25.3, 30.6], [22.7, 30.6]]} fill={INK} />
-      <polyline points="20.6,33.6 24,35 27.4,33.6" stroke={INK} strokeWidth={0.7} fill="none" strokeLinecap="round" />
+      <path d="M18 33.4h12" stroke="#8A6242" strokeWidth="1.4" strokeLinecap="round" />
+      <path d="M19.6 33.4l1.4 2.9 1.4-2.9Z" fill="#FFFFFF" />
+      <path d="M26.6 33.4l1.4 2.9 1.4-2.9Z" fill="#FFFFFF" />
+      <Kulhad paw="#A87F57" />
     </>
   ),
   wolf: (
     <>
-      <Pair p={[[12.8, 17.8], [13.4, 3.4], [20.8, 12.8]]} left="#9FB3CC" right="#5D7190" />
-      <Pair p={[[14.6, 15.4], [14.9, 7.8], [18.6, 12.6]]} left="#E1EAF5" right="#C6D3E3" />
-      <Head tone={{ hi: "#9FB3CC", mid: "#7F94B0", lo: "#5D7190" }} w={0.96} chin={39.5} />
-      <F p={[[24, 13.4], [22, 18.6], [24, 21.6], [26, 18.6]]} fill="#C9D6E6" />
-      <F p={[[17.6, 26.4], [24, 26.8], [24, 39.5]]} fill="#EEF3F9" />
-      <F p={[[30.4, 26.4], [24, 26.8], [24, 39.5]]} fill="#D6DFEA" />
-      <Eyes glow={GLOW.ice} y={23.2} dx={5.2} tilt={18} rx={2.1} ry={1.05} />
-      <Nose y={31.6} w={1.7} h={2} />
+      <Body color="#5F7186" />
+      <path d="M11 16.5 12.5 3.5 20 10.5Z" fill="#7C8DA6" />
+      <path d="M37 16.5 35.5 3.5 28 10.5Z" fill="#7C8DA6" />
+      <path d="M13.4 13.2l.9-5 3.2 2.8Z" fill="#C9D4E0" />
+      <path d="M34.6 13.2l-.9-5-3.2 2.8Z" fill="#C9D4E0" />
+      <circle cx="24" cy="23" r="12.5" fill="#8FA2B8" />
+      <path d="M11.9 23.8l4.6 2.1-1.6 4.1Z" fill="#DCE5EE" />
+      <path d="M36.1 23.8l-4.6 2.1 1.6 4.1Z" fill="#DCE5EE" />
+      <ellipse cx="24" cy="28.8" rx="7" ry="5.2" fill="#DCE5EE" />
+      <ellipse cx="24" cy="26.4" rx="1.9" ry="1.3" fill="#37424F" />
+      <circle cx="18.5" cy="24" r="1.3" fill="#2E3947" />
+      <circle cx="29.5" cy="24" r="1.3" fill="#2E3947" />
+      <path d="M22 31.9q2 1.3 4 0" stroke="#37424F" strokeWidth="1.4" strokeLinecap="round" fill="none" />
+      <Kulhad paw="#5F7186" />
     </>
   ),
   monkey: (
     <>
-      <Pair p={[[6, 22.6], [8.6, 19.4], [12.8, 20.4], [13.2, 28], [9, 29.6], [6.2, 27]]} left="#9C6B4A" right="#643F26" />
-      <Pair p={[[8.4, 23], [11.2, 22.4], [11.4, 26.8], [8.8, 27.4]]} left="#F6D2B0" right="#E2B994" />
-      <Head tone={{ hi: "#9C6B4A", mid: "#835536", lo: "#643F26" }} w={0.98} />
-      <F p={[[16, 20], [20.5, 18.4], [24, 21], [24, 36], [19.4, 35.6], [15, 28.4]]} fill="#F6D2B0" />
-      <F p={[[32, 20], [27.5, 18.4], [24, 21], [24, 36], [28.6, 35.6], [33, 28.4]]} fill="#E8BE98" />
-      <Eyes glow={GLOW.amber} y={24} dx={4.6} tilt={6} rx={1.8} ry={1.25} />
-      <circle cx={22.8} cy={29.4} r={0.65} fill="#7A4E2A" />
-      <circle cx={25.2} cy={29.4} r={0.65} fill="#7A4E2A" />
-      <polyline points="20.8,32.2 24,33.8 27.2,32.2" stroke="#7A4E2A" strokeWidth={0.75} fill="none" strokeLinecap="round" />
+      <Body color="#7A4E2A" />
+      <circle cx="10.5" cy="22" r="4.6" fill="#96683C" />
+      <circle cx="37.5" cy="22" r="4.6" fill="#96683C" />
+      <circle cx="10.5" cy="22" r="2.3" fill="#EFD3A7" />
+      <circle cx="37.5" cy="22" r="2.3" fill="#EFD3A7" />
+      <circle cx="24" cy="22.5" r="12.5" fill="#9C6B3F" />
+      <ellipse cx="24" cy="24.5" rx="9.2" ry="8.2" fill="#F0D6A8" />
+      <g stroke="#7A4E2A" strokeWidth="1.6" strokeLinecap="round" fill="none">
+        <path d="M19.2 11.6q1.4-3.4 3.4-1.4" />
+        <path d="M23.2 10.8q1.2-3.6 3.2-1.6" />
+        <path d="M27.2 11.6q2-2.6 3.4-.8" />
+      </g>
+      <circle cx="18.5" cy="23.5" r="1.4" fill={INK} />
+      <circle cx="29.5" cy="23.5" r="1.4" fill={INK} />
+
+      <circle cx="22.8" cy="27.2" r="0.7" fill="#B98E5F" />
+      <circle cx="25.2" cy="27.2" r="0.7" fill="#B98E5F" />
+      <path d="M20.6 29.8q3.4 2.8 6.8 0" stroke={INK} strokeWidth="1.5" strokeLinecap="round" fill="none" />
+      <g fill="#E8A58C" opacity="0.7">
+        <circle cx="14.6" cy="27.2" r="1.6" />
+        <circle cx="33.4" cy="27.2" r="1.6" />
+      </g>
+      <Kulhad paw="#7A4E2A" />
     </>
   ),
 };
 
 /** The full-bleed animal drawing for an avatar circle. */
 export function AnimalArt({ animal, className }: { animal: AnimalKey; className?: string }) {
-  // Gradient ids must be unique per drawing: a board shows dozens at once.
-  const id = React.useId().replace(/:/g, "");
   return (
     <svg viewBox="0 0 48 48" className={className} aria-hidden focusable="false">
-      <defs>
-        <radialGradient id={`${id}-halo`} cx="50%" cy="54%" r="50%">
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.4} />
-          <stop offset="100%" stopColor="#FFFFFF" stopOpacity={0} />
-        </radialGradient>
-        <linearGradient id={`${id}-glass`} x1="0" y1="0" x2="0.9" y2="1">
-          <stop offset="0%" stopColor="#FFFFFF" stopOpacity={0.38} />
-          <stop offset="45%" stopColor="#FFFFFF" stopOpacity={0} />
-          <stop offset="100%" stopColor="#0B0A1A" stopOpacity={0.22} />
-        </linearGradient>
-      </defs>
-      <circle cx="24" cy="26" r="22" fill={`url(#${id}-halo)`} />
       {ART[animal]}
-      {/* Glass over the whole disc: a highlight top left, a little depth bottom right. */}
-      <rect width="48" height="48" fill={`url(#${id}-glass)`} />
     </svg>
   );
 }

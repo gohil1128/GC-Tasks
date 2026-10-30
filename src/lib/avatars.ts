@@ -3,10 +3,9 @@
   Settings. Stored by key, never by artwork, so the drawings in
   components/ui/animal-art.tsx can be retouched without a data migration.
 
-  Two crews of five, all drawn the same futuristic way — faceted low-poly
-  heads with glowing eyes: the cute crew soft and pastel, the wild crew
-  just looking like themselves — a striped tiger, a maned lion, a jowly
-  bulldog — no cartoon anger.
+  Two crews of five, every animal holding its kulhad: the cute crew smile,
+  the wild crew just look like themselves — a calm tiger, a regal lion, a
+  jowly bulldog — natural expressions, no cartoon anger.
 */
 
 export const CUTE_ANIMALS = ["fox", "panda", "owl", "cat", "bunny"] as const;
