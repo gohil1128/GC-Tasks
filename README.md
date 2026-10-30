@@ -4,7 +4,7 @@ A shared task board for the God's Chai team. Everyone signs in with their own em
 
 The board has three columns: **To do → In progress → Done**. Drag a card to move it. Each card shows who is working on it, plus its labels, priority, due date, checklist progress and comment count. Click a card to open it. From there you can edit it, assign people, tick off checklist items, leave comments and see its history.
 
-This app is separate from God's Chai Operations. It has its own database, its own logins and its own deployment. It lives in this repository only so the two apps share a home.
+This app is separate from God's Chai Operations. It has its own repository, its own database, its own logins and its own deployment.
 
 ## Who can do what
 
@@ -43,8 +43,8 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
 
 ## Deploy (Vercel + Neon)
 
-1. In Vercel, choose **Add New → Project** and import this repository again. This creates a separate Vercel project for the board.
-2. Under **Root Directory**, choose `gc-tasks`.
+1. In Vercel, choose **Add New → Project** and import this repository (`gohil1128/GC-Tasks`). The board has its own Vercel project, separate from God's Chai Operations.
+2. Leave **Root Directory** empty — the app is the repository root. Set the **Production Branch** to `main`.
 3. Under **Environment Variables**, add these two:
    - `AUTH_SECRET`: any random string of 32 or more characters.
    - `AUTH_TRUST_HOST`: `true`
@@ -95,7 +95,6 @@ This is not a master password: it only sets a new password on one account. Wrong
 ## Run it locally
 
 ```bash
-cd gc-tasks
 cp .env.example .env          # point DATABASE_URL at a Postgres you can use
 pnpm install
 pnpm db:migrate
