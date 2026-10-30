@@ -1,0 +1,77 @@
+name: GC Tasks
+
+# The board's checks. It is the whole of this repository now, so every change
+# runs them — there is no sibling app to filter against, which is what the
+# path filters used to be for when this lived in a subdirectory. Nothing here
+# deploys: that is the repository's own Vercel project (see README.md).
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: gctasks
+          POSTGRES_PASSWORD: gctasks
+          POSTGRES_DB: gctasks_test
+        options: >-
+          --health-cmd "pg_isready -U gctasks -d gctasks_test" --health-interval 10s
+          --health-timeout 5s --health-retries 5
+        ports:
+          - 5432:5432
+    env:
+      # "test" in the name is what lets the integration suites run: they
+      # empty every table between tests and refuse any other database.
+      DATABASE_URL: postgresql://gctasks:gctasks@localhost:5432/gctasks_test?schema=public
+      AUTH_SECRET: ci-only-secret-ci-only-secret-0123456789
+      AUTH_TRUST_HOST: "true"
+      BASE_URL: http://localhost:3211
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm exec prisma migrate deploy
+      - run: pnpm run typecheck
+      - run: pnpm run lint
+      - name: Unit and integration tests
+        run: pnpm run test
+      - run: pnpm exec next build
+      # The e2e suite signs in with an account made here, with a password that
+      # exists only for this run. The role is stated, not left to the default:
+      # create-user makes an owner only when the database has no accounts, and
+      # the integration tests leave theirs behind — a staff account has no
+      # "New task" button, and the suite timed out looking for it.
+      - name: Create the e2e account
+        run: |
+          echo "E2E_EMAIL=e2e@gctasks.test" >> "$GITHUB_ENV"
+          pw="$(openssl rand -hex 16)"
+          echo "E2E_PASSWORD=$pw" >> "$GITHUB_ENV"
+          pnpm create-user --email e2e@gctasks.test --name "E2E Owner" --role owner --password "$pw"
+      - name: Start the app
+        run: |
+          pnpm exec next start -p 3211 &
+          npx wait-on http://localhost:3211/login --timeout 90000
+      - run: pnpm exec playwright install --with-deps chromium
+      - run: pnpm run test:e2e
+      - uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: gc-tasks-playwright-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 7
