@@ -417,16 +417,19 @@ describe.skipIf(!enabled)("team service (integration)", () => {
       expect(r.ok && r.revision).toBe(before + 1);
     });
 
-    it("saves a picked animal and refuses one outside the club", async () => {
+    it("saves a picked chai avatar and refuses an unknown one", async () => {
       const owner = await makeUser("OWNER");
-      const r = await updateProfile(owner.actor, { name: "Harsh", color: "plum", avatar: "tiger" });
-      expect(r.ok && r.data.avatar).toBe("tiger");
+      const r = await updateProfile(owner.actor, { name: "Harsh", color: "plum", avatar: "ketli" });
+      expect(r.ok && r.data.avatar).toBe("ketli");
       const stored = await prisma.user.findUnique({ where: { id: owner.id }, select: { avatar: true } });
-      expect(stored?.avatar).toBe("tiger");
-      expect(await updateProfile(owner.actor, { name: "Harsh", color: "plum", avatar: "dragon" })).toMatchObject({
-        ok: false,
-        code: "INVALID",
-      });
+      expect(stored?.avatar).toBe("ketli");
+      // An old animal key is not a pick any more.
+      for (const avatar of ["dragon", "tiger"]) {
+        expect(await updateProfile(owner.actor, { name: "Harsh", color: "plum", avatar })).toMatchObject({
+          ok: false,
+          code: "INVALID",
+        });
+      }
     });
 
     it("refuses a name with a NUL character instead of failing the write", async () => {

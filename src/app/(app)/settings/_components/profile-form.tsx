@@ -11,8 +11,8 @@ import { runAction } from "@/lib/action-client";
 import { ROLE_DESCRIPTION, ROLE_LABEL, type Role } from "@/lib/permissions";
 import { updateProfileAction } from "@/modules/team/actions";
 import { NAME_MAX } from "@/modules/team/schemas";
-import { animalFor, type AnimalKey } from "@/lib/avatars";
-import { AnimalPicker } from "./animal-picker";
+import { avatarFor, type AvatarKey } from "@/lib/avatars";
+import { AvatarPicker } from "./avatar-picker";
 import { ColorPicker } from "./color-picker";
 
 export function ProfileForm({
@@ -23,18 +23,18 @@ export function ProfileForm({
   const router = useRouter();
   const [name, setName] = React.useState(me.name);
   const [color, setColor] = React.useState(me.color);
-  // The animal the form shows: their pick, or the seeded default they have
+  // The chai the form shows: their pick, or the seeded default they have
   // been rendered as so far — saving makes the shown one their pick.
-  const initialAnimal = animalFor(me);
-  const [animal, setAnimal] = React.useState<AnimalKey>(initialAnimal);
+  const initialAvatar = avatarFor(me);
+  const [avatar, setAvatar] = React.useState<AvatarKey>(initialAvatar);
   const [saving, setSaving] = React.useState(false);
-  const dirty = name.trim() !== me.name || color !== me.color || animal !== initialAnimal;
+  const dirty = name.trim() !== me.name || color !== me.color || avatar !== initialAvatar;
 
   async function save(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
     if (!dirty || saving) return;
     setSaving(true);
-    const result = await runAction(updateProfileAction({ name, color, avatar: animal }));
+    const result = await runAction(updateProfileAction({ name, color, avatar: avatar }));
     setSaving(false);
     if (result.ok) {
       setName(result.data.name);
@@ -48,7 +48,7 @@ export function ProfileForm({
     <form onSubmit={save} className="grid gap-5">
       <div className="flex items-center gap-4">
         <Avatar
-          person={{ id: me.id, name: name.trim() || me.name, color, avatar: animal }}
+          person={{ id: me.id, name: name.trim() || me.name, color, avatar: avatar }}
           size="lg"
           className="h-14 w-14 text-lg"
         />
@@ -76,7 +76,7 @@ export function ProfileForm({
 
       <ColorPicker name="profile-color" legend="Avatar colour" showLegend value={color} onChange={setColor} />
 
-      <AnimalPicker name="profile-animal" value={animal} onChange={setAnimal} />
+      <AvatarPicker name="profile-avatar" value={avatar} color={color} onChange={setAvatar} />
 
       <div className="flex justify-end">
         <Button type="submit" disabled={!dirty || saving} aria-busy={saving}>
