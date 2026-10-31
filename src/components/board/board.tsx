@@ -868,7 +868,7 @@ export function Board({ initial, currentUser }: { initial: BoardData; currentUse
           {/* The viewport clips the track on a phone; from md up it is just padding around the grid. */}
           <div
             ref={columnsRef}
-            className="relative flex min-h-0 flex-1 flex-col overflow-x-clip px-4 pb-[max(1rem,env(safe-area-inset-bottom))] sm:px-6 md:pb-6"
+            className="relative flex min-h-0 flex-1 flex-col overflow-x-clip px-4 pb-4 sm:px-6 md:pb-6"
           >
             <div
               data-column-track

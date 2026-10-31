@@ -45,6 +45,8 @@ export function CardMenu({ card, className }: { card: TaskCard; className?: stri
           aria-label={`Actions for ${card.title}`}
           className={cn(
             "inline-flex h-7 w-7 items-center justify-center rounded-full text-muted-foreground transition-[opacity,background-color,color]",
+            // Drawn at 28pt but answers to a 44pt square (HIG: 44x44 default control size).
+            "relative after:absolute after:-inset-2 after:content-['']",
             "hover:bg-accent hover:text-foreground",
             "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
             // Always there on touch screens, which cannot hover to reveal it.
