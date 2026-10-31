@@ -33,7 +33,7 @@ export type Member = {
   name: string;
   email: string;
   color: string;
-  /** Their animal pick from the chai club (src/lib/avatars.ts); null = seeded default. */
+  /** Their chai illustration pick (src/lib/avatars.ts); null = seeded default. */
   avatar: string | null;
   role: Role;
   active: boolean;

@@ -382,7 +382,7 @@ export async function setSignupsOpen(actor: Actor, open: unknown): Promise<Actio
 
 // ── Anyone, about themselves ──────────────────────────────────────────────
 
-/** Your own name, avatar colour and animal, which show on every card you are on. */
+/** Your own name, avatar colour and chai illustration, which show on every card you are on. */
 export async function updateProfile(actor: Actor, input: unknown): Promise<ActionResult<Member>> {
   const parsed = profileSchema.safeParse(input);
   if (!parsed.success) return fail("INVALID", firstIssue(parsed.error));

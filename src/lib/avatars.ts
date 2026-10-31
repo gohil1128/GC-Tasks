@@ -1,53 +1,41 @@
 /*
-  The animal chai club: the illustrated avatars a person can pick in
-  Settings. Stored by key, never by artwork, so the drawings in
-  components/ui/animal-art.tsx can be retouched without a data migration.
+  The chai set: the five minimal illustrations a person can pick as their
+  avatar in Settings. Stored by key, never by artwork, so the drawings in
+  components/ui/chai-art.tsx can be retouched without a data migration.
 
-  Two crews of five, every animal holding its kulhad: the cute crew smile,
-  the wild crew just look like themselves — a calm tiger, a regal lion, a
-  jowly bulldog — natural expressions, no cartoon anger.
+  Accounts that picked one of the old animals keep their stored key; it is
+  no longer a known one, so they are drawn with their seeded default below
+  until they pick again — nobody is ever faceless.
 */
 
-export const CUTE_ANIMALS = ["fox", "panda", "owl", "cat", "bunny"] as const;
-export const WILD_ANIMALS = ["tiger", "lion", "bulldog", "wolf", "monkey"] as const;
+export const AVATAR_KEYS = ["kulhad", "cutting", "ketli", "patti", "elaichi"] as const;
 
-export const ANIMAL_KEYS = [...CUTE_ANIMALS, ...WILD_ANIMALS] as const;
+export type AvatarKey = (typeof AVATAR_KEYS)[number];
 
-export type AnimalKey = (typeof ANIMAL_KEYS)[number];
-
-export function isAnimalKey(value: string): value is AnimalKey {
-  return (ANIMAL_KEYS as readonly string[]).includes(value);
+export function isAvatarKey(value: string): value is AvatarKey {
+  return (AVATAR_KEYS as readonly string[]).includes(value);
 }
 
-export const ANIMAL_LABEL: Record<AnimalKey, string> = {
-  fox: "Fox",
-  panda: "Panda",
-  owl: "Owl",
-  cat: "Cat",
-  bunny: "Bunny",
-  tiger: "Tiger",
-  lion: "Lion",
-  bulldog: "Bulldog",
-  wolf: "Wolf",
-  monkey: "Monkey",
+export const AVATAR_LABEL: Record<AvatarKey, string> = {
+  kulhad: "Kulhad",
+  cutting: "Cutting chai",
+  ketli: "Ketli",
+  patti: "Chai patti",
+  elaichi: "Elaichi",
 };
 
-export function isWild(key: AnimalKey): boolean {
-  return (WILD_ANIMALS as readonly string[]).includes(key);
-}
-
 /**
-  A stable animal for an account that has not picked one, hashed from its id
-  the same way colours are seeded — the same person lands on the same animal
-  on every screen, and two people created together do not both come out fox.
+  A stable illustration for an account that has not picked one, hashed from
+  its id the same way colours are seeded — the same person lands on the same
+  one on every screen, and two people created together rarely match.
 */
-export function defaultAnimalForSeed(seed: string): AnimalKey {
+export function defaultAvatarForSeed(seed: string): AvatarKey {
   let h = 0;
   for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  return ANIMAL_KEYS[h % ANIMAL_KEYS.length];
+  return AVATAR_KEYS[h % AVATAR_KEYS.length];
 }
 
-/** The animal to draw for a person: their pick when valid, else the seeded default. */
-export function animalFor(person: { id: string; avatar?: string | null }): AnimalKey {
-  return person.avatar && isAnimalKey(person.avatar) ? person.avatar : defaultAnimalForSeed(person.id);
+/** The illustration to draw for a person: their pick when valid, else the seeded default. */
+export function avatarFor(person: { id: string; avatar?: string | null }): AvatarKey {
+  return person.avatar && isAvatarKey(person.avatar) ? person.avatar : defaultAvatarForSeed(person.id);
 }

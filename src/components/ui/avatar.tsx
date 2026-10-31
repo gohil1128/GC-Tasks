@@ -1,7 +1,7 @@
-import { animalFor } from "@/lib/avatars";
+import { avatarFor } from "@/lib/avatars";
 import { solidClass } from "@/lib/colors";
 import { cn } from "@/lib/utils";
-import { AnimalArt } from "./animal-art";
+import { ChaiArt } from "./chai-art";
 
 export type AvatarPerson = { id: string; name: string; color: string; avatar?: string | null };
 
@@ -15,13 +15,11 @@ const SIZES = {
 export type AvatarSize = keyof typeof SIZES;
 
 /**
-  A person as their animal from the chai club (src/lib/avatars.ts): the pick
-  they made in Settings, or the one seeded from their account id when they
-  have not picked yet. The animal is drawn full-bleed over the person's
-  colour, which rings it and tints the corners — colour plus species is
-  what tells people apart at card size, where the old single kulhad glyph
-  in twelve tints could not. The name stays in the tooltip and the
-  screen-reader text.
+  A person as their chai illustration (src/lib/avatars.ts): the pick they
+  made in Settings, or the one seeded from their account id when they have
+  not picked yet. It is drawn full-bleed over the person's colour — colour
+  plus illustration is what tells people apart at card size. The name stays
+  in the tooltip and the screen-reader text.
 */
 export function Avatar({
   person,
@@ -42,7 +40,7 @@ export function Avatar({
         className,
       )}
     >
-      <AnimalArt animal={animalFor(person)} className="absolute inset-0 h-full w-full" />
+      <ChaiArt avatar={avatarFor(person)} className="absolute inset-0 h-full w-full" />
       <span className="sr-only">{person.name}</span>
     </span>
   );

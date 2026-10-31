@@ -1,5 +1,5 @@
 import { z } from "zod";
-import { isAnimalKey } from "@/lib/avatars";
+import { isAvatarKey } from "@/lib/avatars";
 import { isColorKey } from "@/lib/colors";
 import { ROLES } from "@/lib/permissions";
 
@@ -54,16 +54,16 @@ export const addMemberSchema = z.object({
   role: roleSchema,
 });
 
-export const animalSchema = z
-  .string({ message: "Pick one of the animals shown." })
-  .refine(isAnimalKey, "Pick one of the animals shown.");
+export const avatarSchema = z
+  .string({ message: "Pick one of the avatars shown." })
+  .refine(isAvatarKey, "Pick one of the avatars shown.");
 
 export const profileSchema = z.object({
   name: nameSchema,
   color: colorSchema,
   // Optional so older callers keep working; the profile form always sends
-  // the animal it shows (the pick, or the seeded default it renders).
-  avatar: animalSchema.optional(),
+  // the avatar it shows (the pick, or the seeded default it renders).
+  avatar: avatarSchema.optional(),
 });
 
 export const activeSchema = z.boolean({ message: "Say whether the account should be active." });
