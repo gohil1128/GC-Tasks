@@ -21,16 +21,16 @@ function isActive(pathname: string, href: string): boolean {
   Team is left out for staff entirely rather than shown and refused: the page
   would only send them back to the board.
 
-  From `sm` up the places sit in the header, named. On a phone they live in
-  the TabBar at the bottom instead, so the header carries only the logo, the
-  bell and your account.
+  Four names do not fit beside the logo and the bell on a phone, so below
+  `sm` every link is its icon and only the page you are on also shows its
+  name; the others keep theirs for screen readers and as a tooltip.
 */
 export function NavLinks({ canManageTeam }: { canManageTeam: boolean }) {
   const pathname = usePathname();
   const items = ITEMS.filter((item) => !item.ownersOnly || canManageTeam);
 
   return (
-    <nav aria-label="Main" className="hidden min-w-0 sm:block">
+    <nav aria-label="Main" className="min-w-0">
       <ul className="flex items-center gap-0.5 sm:gap-1">
         {items.map(({ href, label, icon: Icon }) => {
           const active = isActive(pathname, href);
@@ -48,60 +48,7 @@ export function NavLinks({ canManageTeam }: { canManageTeam: boolean }) {
                 )}
               >
                 <Icon className="h-4 w-4" aria-hidden />
-                <span>{label}</span>
-              </Link>
-            </li>
-          );
-        })}
-      </ul>
-    </nav>
-  );
-}
-
-/**
-  The phone's tab bar (Apple HIG, tab-bars.md): the app's places at the
-  bottom, where a thumb reaches them, each an icon over a one-word label,
-  always on screen — a sheet slides over it, as a modal should. Places, never
-  actions: New task and the like stay with the page they act on.
-
-  The current tab is told apart by colour, weight and a filled pill behind
-  its icon, not by colour alone. Each tab is the full height of the bar and
-  an equal share of its width — 49pt or more, like the system's.
-*/
-export function TabBar({ canManageTeam }: { canManageTeam: boolean }) {
-  const pathname = usePathname();
-  const items = ITEMS.filter((item) => !item.ownersOnly || canManageTeam);
-
-  return (
-    <nav
-      aria-label="Main"
-      className="shrink-0 border-t border-border bg-background/95 pb-[env(safe-area-inset-bottom)] backdrop-blur-md sm:hidden"
-    >
-      <ul className="flex">
-        {items.map(({ href, label, icon: Icon }) => {
-          const active = isActive(pathname, href);
-          return (
-            <li key={href} className="flex-1">
-              <Link
-                href={href}
-                aria-current={active ? "page" : undefined}
-                className={cn(
-                  "flex min-h-[52px] flex-col items-center justify-center gap-0.5 pt-1.5 pb-1 text-2xs font-medium text-muted-foreground transition-colors",
-                  "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring",
-                  "active:text-foreground",
-                  active && "font-semibold text-foreground",
-                )}
-              >
-                <span
-                  aria-hidden
-                  className={cn(
-                    "flex h-7 w-12 items-center justify-center rounded-full transition-colors",
-                    active && "bg-brand-muted text-brand-ink",
-                  )}
-                >
-                  <Icon className="h-[22px] w-[22px]" strokeWidth={active ? 2.25 : 1.75} />
-                </span>
-                {label}
+                <span className={cn(!active && "sr-only sm:not-sr-only")}>{label}</span>
               </Link>
             </li>
           );

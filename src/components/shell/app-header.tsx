@@ -8,9 +8,9 @@ import { UserMenu, type ShellUser } from "@/components/shell/user-menu";
 
 /*
   One slim row: logo, the places there are to go, and the account menu.
-  On a phone the places move to the tab bar at the bottom (see TabBar), so
-  here it is just the logo, the bell and your account; the app name appears
-  once there is room for it.
+  It has to fit a 360px phone with the board below it, so the app name only
+  appears once there is room for it, and the nav shrinks to icons with just
+  the current page named (see NavLinks).
 
   Sticky, though the frame never scrolls it away: iPhone Safari blurs
   whatever sits under the status bar unless a fixed or sticky bar is there,

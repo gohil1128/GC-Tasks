@@ -1,7 +1,5 @@
 import { requirePageUser } from "@/lib/page-auth";
 import { AppHeader } from "@/components/shell/app-header";
-import { TabBar } from "@/components/shell/nav-links";
-import { canManageTeam } from "@/lib/permissions";
 import { PullToRefresh } from "@/components/shell/pull-to-refresh";
 
 export const dynamic = "force-dynamic";
@@ -12,8 +10,8 @@ export const dynamic = "force-dynamic";
   its next page load rather than when its cookie expires — and someone still
   on a temporary password gets no further than choosing their own.
 
-  The frame is exactly the viewport tall — header, main, and on a phone the
-  tab bar — and main takes the rest (flex-1 min-h-0) so the board can lay its columns out in that height and
+  The frame is exactly the viewport tall, header then main, and main takes the
+  rest (flex-1 min-h-0) so the board can lay its columns out in that height and
   scroll each one on its own. Taller pages, like Team and Settings, scroll
   inside main.
 */
@@ -30,7 +28,6 @@ export default async function AppLayout({ children }: { children: React.ReactNod
       </a>
       <AppHeader me={{ id: me.id, name: me.name, email: me.email, color: me.color, avatar: me.avatar, role: me.role }} />
       <PullToRefresh>{children}</PullToRefresh>
-      <TabBar canManageTeam={canManageTeam(me)} />
     </div>
   );
 }
