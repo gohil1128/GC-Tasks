@@ -93,6 +93,19 @@ export function BoardColumn({
   const persistentAdd = status === "TODO";
   const showAdd = canCreate && (persistentAdd || quickAddOpen);
   const listEdgesRef = useScrollEdges();
+  // The list's top padding is the floating head's height, written straight to the element
+  // so opening the add box never re-renders the column.
+  const headObserver = React.useRef<ResizeObserver | null>(null);
+  const headRef = React.useCallback((head: HTMLDivElement | null) => {
+    headObserver.current?.disconnect();
+    headObserver.current = null;
+    const stage = head?.parentElement;
+    if (!head || !stage) return;
+    const sync = () => stage.style.setProperty("--column-head", `${head.offsetHeight}px`);
+    sync();
+    headObserver.current = new ResizeObserver(sync);
+    headObserver.current.observe(head);
+  }, []);
   const countText = filtering && cards.length !== total ? `${cards.length} of ${total}` : String(total);
 
   return (
@@ -108,59 +121,67 @@ export function BoardColumn({
         highlighted && "ring-2 ring-brand/40",
       )}
     >
-      <header className="flex shrink-0 items-center gap-2 py-2.5 pl-4 pr-2">
-        <h2 id={titleId} className="display text-[0.95rem] font-semibold">
-          {label}
-        </h2>
-        <span className="rounded-full bg-card px-2 py-px text-2xs font-semibold tabular-nums text-muted-foreground">
-          <span aria-hidden>{countText}</span>
-          <span className="sr-only">
-            {filtering && cards.length !== total
-              ? `${cards.length} of ${total} tasks shown`
-              : total === 1
-                ? "1 task"
-                : `${total} tasks`}
-          </span>
-        </span>
-        <div className="ml-auto flex items-center gap-0.5">
-          {canCreate && (
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              aria-label={`Add a task to ${label}`}
-              title={`Add a task to ${label}`}
-              onClick={() => onQuickAddOpenChange(true)}
-            >
-              <Plus className="h-4 w-4" aria-hidden />
-            </Button>
-          )}
-          {headerMenu}
+      <div className="relative flex min-h-0 flex-1 flex-col overflow-clip rounded-2xl">
+        {/* The head floats over the list: cards scroll up behind it, blurred through a
+            frosted layer that thins out at its lower edge (see .column-glass). */}
+        <div ref={headRef} data-column-head className="absolute inset-x-0 top-0 z-20">
+          <div aria-hidden className="column-glass pointer-events-none absolute inset-x-0 -bottom-4 top-0" />
+          <div className="relative">
+            <header className="flex shrink-0 items-center gap-2 py-2.5 pl-4 pr-2">
+              <h2 id={titleId} className="display text-[0.95rem] font-semibold">
+                {label}
+              </h2>
+              <span className="rounded-full bg-card px-2 py-px text-2xs font-semibold tabular-nums text-muted-foreground">
+                <span aria-hidden>{countText}</span>
+                <span className="sr-only">
+                  {filtering && cards.length !== total
+                    ? `${cards.length} of ${total} tasks shown`
+                    : total === 1
+                      ? "1 task"
+                      : `${total} tasks`}
+                </span>
+              </span>
+              <div className="ml-auto flex items-center gap-0.5">
+                {canCreate && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    aria-label={`Add a task to ${label}`}
+                    title={`Add a task to ${label}`}
+                    onClick={() => onQuickAddOpenChange(true)}
+                  >
+                    <Plus className="h-4 w-4" aria-hidden />
+                  </Button>
+                )}
+                {headerMenu}
+              </div>
+            </header>
+
+            {showAdd && (
+              <QuickAdd
+                key={persistentAdd ? "persistent" : "opened"}
+                status={status}
+                persistent={persistentAdd}
+                autoFocus={!persistentAdd}
+                inputRef={quickAddRef}
+                onAdd={(title) => onAdd(title, status)}
+                onClose={() => onQuickAddOpenChange(false)}
+              />
+            )}
+          </div>
         </div>
-      </header>
 
-      {showAdd && (
-        <QuickAdd
-          key={persistentAdd ? "persistent" : "opened"}
-          status={status}
-          persistent={persistentAdd}
-          autoFocus={!persistentAdd}
-          inputRef={quickAddRef}
-          onAdd={(title) => onAdd(title, status)}
-          onClose={() => onQuickAddOpenChange(false)}
-        />
-      )}
-
-      {/* The task list. Pulling it down at its top refreshes the board (see Board): only the
-          cards move, with the spinner in the gap above them; the header and add box stay put. */}
-      <div className="relative flex min-h-0 flex-1 flex-col">
-        <PullIndicator />
+        {/* The task list, the full height of the column. Pulling it down at its top refreshes the
+            board (see Board): only the cards move, with the spinner in the gap between the head
+            and the first card; the header and add box stay put. */}
+        <PullIndicator className="top-[var(--column-head,3rem)]" />
         <div
           ref={listEdgesRef}
           data-column-list
-          className="scroll-quiet scroll-fade min-h-0 flex-1 overflow-y-auto overscroll-x-contain overscroll-y-none px-2 pb-2"
+          className="scroll-quiet scroll-fade-bottom min-h-0 flex-1 overflow-y-auto overscroll-x-contain overscroll-y-none px-2 pb-2"
         >
-          <div data-column-list-content>
+          <div data-column-list-content className="pt-[var(--column-head,3rem)]">
             <SortableContext id={status} items={ids} strategy={verticalListSortingStrategy}>
               <ul className="flex flex-col gap-2 p-0.5" aria-label={`${label} tasks`}>
                 {cards.map((card) => (
