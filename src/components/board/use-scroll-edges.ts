@@ -2,7 +2,7 @@ import * as React from "react";
 
 /**
  * Keeps `data-scrolled` (scrolled away from the top) and `data-more` (more
- * below) on a scroll box, for the `.scroll-fade` edges. Written straight to
+ * below) on a scroll box, for the `.scroll-fade` edges (and `.scroll-fade-bottom`). Written straight to
  * the element, once a frame at most, so scrolling re-renders nothing. Also
  * re-checked when the content changes size (cards added, moved or filtered).
  */
