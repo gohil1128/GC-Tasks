@@ -233,7 +233,9 @@ export function SortableTaskCard({ card, draggable }: { card: TaskCardData; drag
         onKeyDown={onKeyDown}
         className={cn(
           CARD_SURFACE,
-          "select-none outline-none transition-[box-shadow,opacity,border-color] [-webkit-touch-callout:none]",
+          "select-none outline-none transition-[box-shadow,opacity,border-color,transform] duration-150 ease-out-strong [-webkit-touch-callout:none]",
+          // Gives a little under the finger, so a tap feels heard before the task opens.
+          !pending && "active:scale-[0.985]",
           "hover:border-border hover:shadow-lift",
           "focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-column",
           canDrag ? "cursor-grab touch-manipulation active:cursor-grabbing" : "cursor-pointer",

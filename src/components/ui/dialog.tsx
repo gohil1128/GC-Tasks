@@ -90,7 +90,7 @@ const DialogOverlay = React.forwardRef<
   <DialogPrimitive.Overlay
     ref={ref}
     className={cn(
-      "fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
+      "fixed inset-0 z-50 bg-black/40 backdrop-blur-[2px] [animation-timing-function:cubic-bezier(0.23,1,0.32,1)] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-150",
       className,
     )}
     {...props}
@@ -124,7 +124,7 @@ const DialogContent = React.forwardRef<
         className={cn(
           "fixed inset-x-0 bottom-0 top-0 z-50 flex flex-col gap-4 overflow-y-auto border border-border bg-card p-5 shadow-float outline-none",
           "sm:inset-auto sm:left-1/2 sm:top-[8vh] sm:max-h-[84vh] sm:w-full sm:max-w-lg sm:-translate-x-1/2 sm:rounded-bento sm:p-6",
-          "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.98] data-[state=closed]:animate-out data-[state=closed]:fade-out-0",
+          "[animation-timing-function:cubic-bezier(0.23,1,0.32,1)] data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-[0.98] data-[state=open]:duration-200 data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:duration-150",
           className,
         )}
         {...props}

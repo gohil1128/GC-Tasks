@@ -45,6 +45,12 @@ function fakeSheet(clientWidth = 360, clientHeight = 640) {
     clientWidth,
     clientHeight,
     style: {} as Record<string, string>,
+    animations: [] as Array<{ keyframes: unknown; options: unknown }>,
+    getAnimations: () => [],
+    animate(keyframes: unknown, options: unknown) {
+      this.animations.push({ keyframes, options });
+      return { finished: new Promise(() => {}), cancel() {} };
+    },
     addEventListener(type: string, fn: Handler) {
       if (!handlers.has(type)) handlers.set(type, new Set());
       handlers.get(type)!.add(fn);
@@ -77,6 +83,9 @@ describe("attachSwipeBack", () => {
       matchMedia: () => ({ matches: false }),
       setTimeout: (fn: () => void, ms: number) => setTimeout(fn, ms),
     });
+    // One frame is 16ms of the fake clock.
+    vi.stubGlobal("requestAnimationFrame", (fn: (t: number) => void) => setTimeout(() => fn(0), 16) as unknown as number);
+    vi.stubGlobal("cancelAnimationFrame", (id: number) => clearTimeout(id));
   });
   afterEach(() => {
     vi.useRealTimers();
@@ -190,6 +199,7 @@ describe("attachSwipeBack", () => {
 
     sheet.fire("touchstart", touchEvent(10, 100));
     sheet.fire("touchmove", touchEvent(140, 104));
+    vi.advanceTimersByTime(16);
     const scale = Number(/scale\(([\d.]+)\)/.exec(sheet.style.transform)?.[1]);
     expect(scale).toBeLessThan(1);
     expect(scale).toBeGreaterThan(0.6);
@@ -201,17 +211,76 @@ describe("attachSwipeBack", () => {
     expect(onBack).toHaveBeenCalledTimes(1);
   });
 
-  it("a zooming sheet springs back to full size on a short swipe", () => {
+  it("draws a zoom drag once a frame, however many touch events arrive", () => {
+    const sheet = fakeSheet();
+    attachSwipeBack(sheet as unknown as HTMLElement, vi.fn(), undefined, { zoom: true });
+    sheet.fire("touchstart", touchEvent(10, 100));
+    sheet.fire("touchmove", touchEvent(30, 100));
+    sheet.fire("touchmove", touchEvent(60, 101));
+    sheet.fire("touchmove", touchEvent(90, 102));
+    // Nothing drawn until the frame comes round...
+    expect(sheet.style.transform).toBeUndefined();
+    vi.advanceTimersByTime(16);
+    // ...and then it is the LATEST position that is drawn, not the first.
+    const tx = Number(/translate\(([-\d.]+)px/.exec(sheet.style.transform)?.[1]);
+    expect(tx).toBeGreaterThan(40);
+  });
+
+  it("lets go from where the finger is, even if its last move hasn't been drawn", () => {
+    const sheet = fakeSheet();
+    const onBack = vi.fn();
+    attachSwipeBack(sheet as unknown as HTMLElement, onBack, undefined, { zoom: true });
+    sheet.fire("touchstart", touchEvent(10, 100));
+    sheet.fire("touchmove", touchEvent(150, 100));
+    sheet.fire("touchend", touchEvent(150, 100));
+    expect(sheet.style.transform).toMatch(/scale\(0\./);
+    expect(onBack).toHaveBeenCalledTimes(1);
+  });
+
+  it("a zooming sheet springs back to full size on a short swipe, carrying a leftward release", () => {
     const sheet = fakeSheet();
     const onBack = vi.fn();
     attachSwipeBack(sheet as unknown as HTMLElement, onBack, undefined, { zoom: true });
 
-    sheet.fire("touchstart", touchEvent(10, 100));
-    sheet.fire("touchmove", touchEvent(50, 102));
-    sheet.fire("touchend", touchEvent(50, 102));
-    expect(sheet.style.transform).toBe("translate(0px, 0px) scale(1)");
+    sheet.fire("touchstart", touchEvent(10, 100, 1000));
+    sheet.fire("touchmove", touchEvent(60, 102, 1050));
+    sheet.fire("touchmove", touchEvent(40, 102, 1090));
+    sheet.fire("touchend", touchEvent(40, 102, 1100));
+    expect(sheet.animations).toHaveLength(1);
+    const { keyframes, options } = sheet.animations[0] as {
+      keyframes: Array<Record<string, unknown>>;
+      options: { duration: number; fill: string };
+    };
+    expect(keyframes[1].transform).toBe("translate(0px, 0px) scale(1)");
+    expect(keyframes[1].opacity).toBe(1);
+    expect(options.fill).toBe("forwards");
+    expect(options.duration).toBeGreaterThan(100);
     vi.advanceTimersByTime(500);
     expect(onBack).not.toHaveBeenCalled();
+  });
+
+  it("a sheet swiped while still opening is picked up where it is, not teleported", () => {
+    const sheet = fakeSheet();
+    let stopped = 0;
+    (sheet as { getAnimations: () => unknown[] }).getAnimations = () => [{ commitStyles() {}, cancel: () => stopped++ }];
+    // The styles the frozen animation left: small, low down and clipped to a card.
+    sheet.style.clipPath = "inset(0px 0px 520px 0px round 16px)";
+    vi.stubGlobal("getComputedStyle", () => ({ transform: "matrix(0.88, 0, 0, 0.88, 40, 300)" }));
+    vi.stubGlobal("DOMMatrixReadOnly", class {
+      a = 0.88;
+      e = 40;
+      f = 300;
+    });
+    attachSwipeBack(sheet as unknown as HTMLElement, vi.fn(), undefined, { zoom: true });
+    sheet.fire("touchstart", touchEvent(10, 100));
+    sheet.fire("touchmove", touchEvent(30, 100));
+    vi.advanceTimersByTime(16);
+    expect(stopped).toBeGreaterThan(0);
+    // Still down at the card's height and clipped, not snapped to a full-size sheet at the top.
+    const ty = Number(/translate\([-\d.]+px, ([-\d.]+)px\)/.exec(sheet.style.transform)?.[1]);
+    expect(ty).toBeGreaterThan(250);
+    expect(sheet.style.clipPath).toMatch(/520px/);
+    vi.unstubAllGlobals();
   });
 
   it("springs back when the close is refused", () => {

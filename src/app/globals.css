@@ -261,12 +261,28 @@
 .solid-rose     { background: hsl(350 60% 48%); color: #fff; }
 .solid-slate    { background: hsl(25 10% 40%);  color: #fff; }
 
+/*
+  Reduce motion means less movement, not none. Things still fade and change
+  colour, because that tells people what happened; what stops is anything that
+  travels or grows: sheets, menus and pop-ups appear in place, presses don't
+  squash, and spinners (which are the only thing saying "working") keep going.
+  The two JS-driven animations that move things (the task zoom and the column
+  carousel's glide) check the setting themselves.
+*/
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
   *::after {
-    animation-duration: 0.01ms !important;
-    transition-duration: 0.01ms !important;
+    --tw-enter-scale: 1 !important;
+    --tw-exit-scale: 1 !important;
+    --tw-enter-translate-x: 0 !important;
+    --tw-enter-translate-y: 0 !important;
+    --tw-exit-translate-x: 0 !important;
+    --tw-exit-translate-y: 0 !important;
+    scroll-behavior: auto !important;
+  }
+  [class*="active:scale-"]:active {
+    transform: none !important;
   }
 }
 
