@@ -19,7 +19,10 @@ const PopoverContent = React.forwardRef<
       collisionPadding={collisionPadding}
       className={cn(
         "z-50 w-64 rounded-2xl border border-border bg-popover p-2 text-popover-foreground shadow-lift outline-none ring-1 ring-black/5",
-        "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95",
+        // Grows out of the button that opened it, not out of its own middle; leaves faster than it arrives.
+        "origin-[var(--radix-popover-content-transform-origin)] [animation-timing-function:cubic-bezier(0.23,1,0.32,1)]",
+        "data-[state=open]:animate-in data-[state=open]:fade-in-0 data-[state=open]:zoom-in-95 data-[state=open]:duration-150",
+        "data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=closed]:zoom-out-95 data-[state=closed]:duration-100",
         className,
       )}
       {...props}

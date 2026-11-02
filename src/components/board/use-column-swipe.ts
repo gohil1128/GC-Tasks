@@ -47,6 +47,11 @@ const SETTLE_EASING = "cubic-bezier(0.22, 0.8, 0.3, 1)";
 /** A tab tap or a card dragged to another column's tab: a calm, fixed slide. */
 const PROGRAMMATIC_MS = 300;
 
+/** Someone who asked their phone for less motion gets the column (and its tab pill) placed, not glided. */
+function prefersReducedMotion(): boolean {
+  return typeof window !== "undefined" && typeof window.matchMedia === "function" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+
 /** The column a finished swipe lands on, or null to stay put. dx < 0 is a swipe to the left. */
 export function columnAfterSwipe(current: Status, dx: number, velocityX: number): Status | null {
   const far = Math.abs(dx) >= COLUMN_SWIPE_MIN_X;
@@ -162,7 +167,7 @@ export function useColumnSwipe({
       const from = visiblePos();
       stopAnimations();
       pos.current = to;
-      if (ms <= 0 || from === to || typeof (t ?? pill)?.animate !== "function") {
+      if (ms <= 0 || from === to || prefersReducedMotion() || typeof (t ?? pill)?.animate !== "function") {
         place(to, false);
         after?.();
         return;

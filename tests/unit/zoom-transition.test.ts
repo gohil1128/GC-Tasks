@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { dragFrame, fallbackFrame, restingFrame, zoomFrame } from "@/components/ui/zoom-transition";
+import { REST_BASE, dragFrame, fallbackFrame, restingFrame, zoomFrame } from "@/components/ui/zoom-transition";
 
 const phone = { left: 0, top: 0, width: 390, height: 844 };
 
@@ -52,6 +52,30 @@ describe("dragFrame", () => {
 
   it("follows the finger down as well as across", () => {
     expect(parse(dragFrame(phone, 100, 120)).ty).toBeGreaterThan(parse(dragFrame(phone, 100, 0)).ty);
+  });
+});
+
+describe("dragFrame from a sheet caught mid-zoom", () => {
+  // Grabbed a third of the way through opening: small, low on the screen, clipped to a card.
+  const caught = { tx: 40, ty: 300, s: 0.88, clipBottom: 500, radius: 14 };
+
+  it("starts exactly where it was caught, however little the finger has moved", () => {
+    const f = parse(dragFrame(phone, 0, 0, caught));
+    expect(f.tx).toBeCloseTo(40, 1);
+    expect(f.ty).toBeCloseTo(300, 1);
+    expect(f.s).toBeCloseTo(0.88, 3);
+    expect(f.bottom).toBe(500);
+  });
+
+  it("then follows the finger from there, not from where a resting sheet would be", () => {
+    const rest = parse(dragFrame(phone, 100, 0));
+    const grabbed = parse(dragFrame(phone, 100, 0, caught));
+    expect(grabbed.ty).toBeGreaterThan(rest.ty + 250);
+    expect(grabbed.s).toBeLessThan(rest.s);
+  });
+
+  it("is the same as the plain drag frame when it was at rest", () => {
+    expect(dragFrame(phone, 120, 30, REST_BASE)).toEqual(dragFrame(phone, 120, 30));
   });
 });
 

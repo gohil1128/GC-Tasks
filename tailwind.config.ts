@@ -5,6 +5,9 @@ import animate from "tailwindcss-animate";
 // two apps read as one family. Values live in src/app/globals.css.
 const config: Config = {
   darkMode: ["class"],
+  // `hover:` only applies where the device can really hover: on a phone a tap
+  // otherwise leaves the last-touched card or button stuck in its hover look.
+  future: { hoverOnlyWhenSupported: true },
   content: ["./src/**/*.{ts,tsx}"],
   theme: {
     extend: {
@@ -60,6 +63,10 @@ const config: Config = {
       },
       fontSize: {
         "2xs": ["0.6875rem", { lineHeight: "1rem" }],
+      },
+      // The built-in ease-out is too gentle to feel intentional; this one starts fast.
+      transitionTimingFunction: {
+        "out-strong": "cubic-bezier(0.23, 1, 0.32, 1)",
       },
       boxShadow: {
         card: "var(--shadow-sm)",

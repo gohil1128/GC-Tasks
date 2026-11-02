@@ -1,5 +1,6 @@
 import * as React from "react";
-import { dragFrame } from "@/components/ui/zoom-transition";
+import { releaseSpring, springEasing } from "@/components/ui/spring";
+import { dragFrame, freezeAnimations, noteRelease, readFrame, restingFrame, type FrameBase } from "@/components/ui/zoom-transition";
 
 /*
   Swipe right to go back, phone-style: the sheet follows the finger in
@@ -16,6 +17,10 @@ import { dragFrame } from "@/components/ui/zoom-transition";
   iOS way instead: it shrinks into a rounded card that follows the finger,
   and on release the dialog's close flies that card back into the task's
   card on the board — so the swipe and the landing read as one movement.
+  The finger's speed at release is handed on: a flick sends the card home
+  quickly, a slow release lets it settle, and a swipe too short to close
+  springs back to full size with the same carried-over speed. Grabbing the
+  sheet again while it is still moving picks it up exactly where it is.
 
   Wiring lesson (the Oct 22 bug): the listeners must attach when the
   sheet MOUNTS, not when the page loads — a dialog's content does not
@@ -65,7 +70,14 @@ export function attachSwipeBack(
   let start: { x: number; y: number } | null = null;
   let mode: "pending" | "drag" | "scroll" = "pending";
   let lastDx = 0;
-  let samples: { t: number; x: number }[] = [];
+  let lastDy = 0;
+  let samples: { t: number; x: number; y: number }[] = [];
+  // Zoom drags are drawn once per screen frame, however many touch events arrive.
+  let frame = 0;
+  // Where the finger found the sheet (null: at rest). A sheet grabbed mid-zoom carries on from there.
+  let base: FrameBase | null = null;
+  // Bumped by every new touch, so a finishing spring-back never clears a newer drag.
+  let generation = 0;
 
   // The dimmed backdrop behind the sheet (Radix renders it just before the
   // content) lightens as the sheet slides, so the board comes into view
@@ -77,12 +89,24 @@ export function attachSwipeBack(
 
   const now = (event: TouchEvent) => (event.timeStamp > 0 ? event.timeStamp : Date.now());
 
-  const velocity = (): number => {
+  /** Finger velocity over the last stretch of the swipe, px per ms. */
+  const velocity = (): { vx: number; vy: number } => {
     const last = samples[samples.length - 1];
-    if (!last) return 0;
+    if (!last) return { vx: 0, vy: 0 };
     const first = samples.find((s) => last.t - s.t <= VELOCITY_WINDOW_MS);
-    if (!first || last.t <= first.t) return 0;
-    return (last.x - first.x) / (last.t - first.t);
+    if (!first || last.t <= first.t) return { vx: 0, vy: 0 };
+    return { vx: (last.x - first.x) / (last.t - first.t), vy: (last.y - first.y) / (last.t - first.t) };
+  };
+
+  const drawZoom = () => {
+    frame = 0;
+    el.style.transformOrigin = "0 0";
+    Object.assign(
+      el.style,
+      dragFrame({ left: 0, top: 0, width: el.clientWidth, height: el.clientHeight }, lastDx, lastDy, base ?? undefined),
+    );
+    const bd = backdrop();
+    if (bd) bd.style.opacity = String(Math.max(0, 1 - lastDx / Math.max(el.clientWidth, 1)));
   };
 
   const onTouchStart = (event: TouchEvent) => {
@@ -94,7 +118,9 @@ export function attachSwipeBack(
     start = { x: touch.clientX, y: touch.clientY };
     mode = "pending";
     lastDx = 0;
-    samples = [{ t: now(event), x: touch.clientX }];
+    lastDy = 0;
+    generation++;
+    samples = [{ t: now(event), x: touch.clientX, y: touch.clientY }];
   };
 
   const onTouchMove = (event: TouchEvent) => {
@@ -109,6 +135,13 @@ export function attachSwipeBack(
       }
       if (dx > 8 && dx > Math.abs(dy)) {
         mode = "drag";
+        // Picks the sheet up wherever it is: still opening, or still springing back.
+        base = null;
+        if (zoom) {
+          if (freezeAnimations(el) > 0) base = readFrame(el);
+          const frozen = backdrop();
+          if (frozen) freezeAnimations(frozen);
+        }
         el.style.transition = "none";
         const bd = backdrop();
         if (bd) bd.style.transition = "none";
@@ -119,48 +152,72 @@ export function attachSwipeBack(
     if (mode !== "drag") return;
     event.preventDefault();
     lastDx = Math.max(0, dx);
-    samples.push({ t: now(event), x: touch.clientX });
+    lastDy = dy;
+    samples.push({ t: now(event), x: touch.clientX, y: touch.clientY });
     if (samples.length > 20) samples = samples.slice(-20);
     if (zoom) {
-      el.style.transformOrigin = "0 0";
-      Object.assign(el.style, dragFrame({ left: 0, top: 0, width: el.clientWidth, height: el.clientHeight }, lastDx, dy));
-    } else {
-      el.style.transform = `translateX(${lastDx}px)`;
+      if (!frame) frame = requestAnimationFrame(drawZoom);
+      return;
     }
+    el.style.transform = `translateX(${lastDx}px)`;
     const bd = backdrop();
     if (bd) bd.style.opacity = String(Math.max(0, 1 - lastDx / Math.max(el.clientWidth, 1)));
+  };
+
+  /**
+    The sheet springs back to full size from where the finger left it, carrying the
+    finger's own speed if it was already heading back. Gives up if grabbed again.
+  */
+  const springBack = (dx: number, vx: number) => {
+    const mine = generation;
+    const bd = backdrop();
+    // px/ms leftwards, as whole trips back per second.
+    const headingBack = Math.max(0, -vx) * 1000 / Math.max(dx, 1);
+    const { easing, duration } = springEasing(releaseSpring(headingBack));
+    const rest = restingFrame(0);
+    const sheetAnim = el.animate([{}, { ...rest, opacity: 1 }], { duration, easing, fill: "forwards" });
+    const backdropAnim = bd ? bd.animate([{}, { opacity: 1 }], { duration, easing, fill: "forwards" }) : null;
+    sheetAnim.finished.then(
+      () => {
+        if (mine !== generation) return;
+        sheetAnim.cancel();
+        backdropAnim?.cancel();
+        el.style.transition = "";
+        el.style.transform = "";
+        el.style.clipPath = "";
+        el.style.opacity = "";
+        el.style.transformOrigin = "";
+        if (bd) {
+          bd.style.transition = "";
+          bd.style.opacity = "";
+        }
+      },
+      () => {},
+    );
   };
 
   const onTouchEnd = () => {
     if (!start) return;
     const wasDrag = mode === "drag";
     const dx = lastDx;
-    const vx = wasDrag ? velocity() : 0;
+    const { vx, vy } = wasDrag ? velocity() : { vx: 0, vy: 0 };
     start = null;
     mode = "pending";
     if (!wasDrag) return;
+    if (zoom && frame) {
+      // The last move hasn't been drawn yet: draw it now, so release starts from where the finger is.
+      cancelAnimationFrame(frame);
+      drawZoom();
+    }
 
     if (zoom && isBackSwipe(dx, vx) && canGoBack()) {
-      // Left where the finger let go: the close flies it home from there.
-      // The CSS exit animation goes first, as below.
+      // Left where the finger let go: the close flies it home from there, at the
+      // speed the finger had. The CSS exit animation goes first, as below.
+      noteRelease(el, { vx: vx * 1000, vy: vy * 1000 });
       el.style.animation = "none";
       onBack();
     } else if (zoom) {
-      const bd = backdrop();
-      el.style.transition = `transform 280ms ${SLIDE_EASING}, clip-path 280ms ${SLIDE_EASING}`;
-      el.style.transform = "translate(0px, 0px) scale(1)";
-      el.style.clipPath = "inset(0px 0px 0px 0px round 0px)";
-      if (bd) {
-        bd.style.transition = `opacity 280ms ${SLIDE_EASING}`;
-        bd.style.opacity = "";
-      }
-      window.setTimeout(() => {
-        el.style.transition = "";
-        el.style.transform = "";
-        el.style.clipPath = "";
-        el.style.transformOrigin = "";
-        if (bd) bd.style.transition = "";
-      }, 300);
+      springBack(dx, vx);
     } else if (isBackSwipe(dx, vx) && canGoBack()) {
       // Complete the slide the finger started, then hand over to the
       // dialog's own close once the sheet is (nearly) off screen. The

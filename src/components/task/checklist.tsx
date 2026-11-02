@@ -23,8 +23,12 @@ function Progress({ done, total }: { done: number; total: number }) {
         className="h-1.5 flex-1 overflow-hidden rounded-full bg-beige-deep"
       >
         <div
-          className={cn("h-full rounded-full transition-[width] duration-300", complete ? "bg-success" : "bg-brand")}
-          style={{ width: `${percent}%` }}
+          // Scaled, not resized: width would re-lay-out the sheet on every frame of the fill.
+          className={cn(
+            "h-full w-full origin-left rounded-full transition-transform duration-300 ease-out-strong",
+            complete ? "bg-success" : "bg-brand",
+          )}
+          style={{ transform: `scaleX(${percent / 100})` }}
         />
       </div>
       <span className={cn("shrink-0 text-xs tabular-nums", complete ? "font-semibold text-success" : "text-muted-foreground")}>
