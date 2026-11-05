@@ -3,48 +3,47 @@
 @tailwind utilities;
 
 /*
-  GC Tasks — the God's Chai palette.
-
-  The same two logo hues as God's Chai Operations (dark roast #3C2216 and
-  chai rust #B85D3C) on a warm cream canvas, so the two apps read as one
-  family. Simpler than Operations: no photograph, no glass, just cards on
-  cream — a board is somewhere you work all day and should stay quiet.
+  GC Tasks — the God's Chai palette (verified live from godschai.com,
+  Nov 4, 2026). Marigold #F2A93C is the one 500 shade for brand fills;
+  marigold/coral/yellow fills always carry dark-brown #2B1B12 text, never
+  white (white on marigold is only 2.0:1). Brand-ink #8F4428 is kept: it
+  is the official logo's script colour and reads 6.7:1 on cream.
 */
 @layer base {
   :root {
     --font-display: var(--font-display-src), ui-sans-serif, system-ui, sans-serif;
     --font-sans: var(--font-sans-src), ui-sans-serif, system-ui, -apple-system, sans-serif;
 
-    --ink-950: 19 48% 9%;
-    --ink-800: 19 46% 16%;   /* logo brown */
-    --ink-600: 20 34% 30%;
+    --ink-950: 22 41% 12%;   /* #2B1B12 dark brown */
+    --ink-800: 22 41% 12%;   /* #2B1B12 dark brown */
+    --ink-600: 20 35% 30%;   /* warm brown */
     --ink-500: 21 24% 40%;
-    --rust-700: 16 56% 36%;
-    --rust-600: 16 54% 42%;
-    --rust-500: 16 51% 48%;  /* logo rust */
-    --rust-100: 24 52% 94%;
+    --rust-700: 16 56% 36%;   /* #8F4428 logo rust — kept */
+    --rust-600: 36 74% 47%;   /* marigold 600 #D18A1F */
+    --rust-500: 36 87% 59%;   /* marigold 500 #F2A93C */
+    --rust-100: 30 89% 89%;   /* peach #FCE4CC */
 
-    --background: 37 37% 93%;          /* #F4EFE7 */
+    --background: 40 79% 96%;          /* warm cream #FDF8EE */
     --foreground: var(--ink-950);
-    --card: 40 50% 98%;
+    --card: 42 100% 98%;           /* near-white cream #FFFCF5 */
     --card-foreground: var(--ink-950);
-    --popover: 40 50% 98%;
+    --popover: 42 100% 98%;        /* near-white cream #FFFCF5 */
     --popover-foreground: var(--ink-950);
     /* A column is a recessed tray the cards sit in. */
-    --column: 37 30% 89%;
+    --column: 30 89% 89%;           /* peach #FCE4CC */
 
     --primary: var(--ink-800);
     --primary-foreground: 37 56% 94%;
     --espresso: var(--ink-800);
     --espresso-foreground: 37 56% 94%;
-    --secondary: 38 44% 96%;
+    --secondary: 40 79% 96%;        /* warm cream */
     --secondary-foreground: var(--ink-600);
-    --muted: 38 40% 95%;
+    --muted: 42 100% 98%;           /* near-white cream */
     --muted-foreground: var(--ink-500);   /* 5.6:1 on card */
-    --accent: 32 32% 92%;
+    --accent: 40 79% 96%;            /* warm cream */
     --accent-foreground: var(--ink-600);
-    --beige: 37 30% 90%;
-    --beige-deep: 35 26% 85%;
+    --beige: 40 79% 96%;             /* warm cream #FDF8EE */
+    --beige-deep: 34 61% 77%;        /* deep peach #E8C9A0 */
 
     --destructive: 0 60% 42%;
     --destructive-foreground: 0 0% 100%;
@@ -56,42 +55,42 @@
     --warning-foreground: 0 0% 100%;
     --warning-muted: 41 81% 92%;
 
-    --brand: var(--rust-500);
-    --brand-foreground: 0 0% 100%;
+    --brand: var(--rust-500);       /* marigold #F2A93C */
+    --brand-foreground: 22 41% 12%;   /* dark brown on marigold, 8.29:1 — never white */
     --brand-ink: var(--rust-700);       /* rust as text: 6.7:1 on cream */
-    --brand-strong: var(--rust-600);    /* white on it: 5.5:1 */
+    --brand-strong: var(--rust-600);    /* marigold 600, dark-brown text */
     --brand-muted: var(--rust-100);
 
-    --border: 30 30% 86%;
-    --input: 30 28% 84%;
+    --border: 32 30% 86%;
+    --input: 32 28% 84%;
     --ring: var(--rust-500);
 
-    --shadow-sm: 0 1px 2px hsl(19 46% 16% / 0.06), 0 1px 1px hsl(19 46% 16% / 0.04);
-    --shadow-md: 0 6px 16px -6px hsl(19 46% 16% / 0.18), 0 2px 4px hsl(19 46% 16% / 0.06);
-    --shadow-lg: 0 18px 40px -12px hsl(19 46% 16% / 0.32), 0 4px 10px hsl(19 46% 16% / 0.08);
+    --shadow-sm: 0 1px 2px hsl(22 41% 12% / 0.06), 0 1px 1px hsl(22 41% 12% / 0.04);
+    --shadow-md: 0 6px 16px -6px hsl(22 41% 12% / 0.18), 0 2px 4px hsl(22 41% 12% / 0.06);
+    --shadow-lg: 0 18px 40px -12px hsl(22 41% 12% / 0.32), 0 4px 10px hsl(22 41% 12% / 0.08);
   }
 
   .dark {
-    --background: 20 30% 7%;
-    --foreground: 37 40% 92%;
-    --card: 20 24% 11%;
-    --card-foreground: 37 40% 92%;
-    --popover: 20 24% 12%;
-    --popover-foreground: 37 40% 92%;
-    --column: 20 26% 9%;
+    --background: 22 35% 7%;
+    --foreground: 40 79% 92%;
+    --card: 22 35% 11%;
+    --card-foreground: 40 79% 92%;
+    --popover: 22 35% 12%;
+    --popover-foreground: 40 79% 92%;
+    --column: 22 35% 9%;
 
-    --primary: 37 50% 90%;
-    --primary-foreground: 19 48% 9%;
-    --espresso: 37 50% 90%;
-    --espresso-foreground: 19 48% 9%;
-    --secondary: 20 20% 15%;
+    --primary: 40 79% 90%;
+    --primary-foreground: 22 41% 12%;
+    --espresso: 40 79% 90%;
+    --espresso-foreground: 22 41% 12%;
+    --secondary: 22 20% 15%;
     --secondary-foreground: 33 22% 78%;
-    --muted: 20 20% 15%;
+    --muted: 22 20% 15%;
     --muted-foreground: 33 18% 68%;
-    --accent: 20 20% 17%;
+    --accent: 22 20% 17%;
     --accent-foreground: 33 22% 85%;
-    --beige: 20 18% 16%;
-    --beige-deep: 20 18% 20%;
+    --beige: 22 18% 16%;
+    --beige-deep: 22 18% 20%;
 
     --destructive: 0 70% 62%;
     --destructive-foreground: 0 0% 8%;
@@ -103,15 +102,15 @@
     --warning-foreground: 0 0% 8%;
     --warning-muted: 39 40% 16%;
 
-    --brand: 16 60% 58%;
-    --brand-foreground: 0 0% 8%;
-    --brand-ink: 16 70% 70%;
-    --brand-strong: 16 60% 58%;
-    --brand-muted: 16 35% 18%;
+    --brand: 36 87% 59%;           /* marigold #F2A93C */
+    --brand-foreground: 22 41% 12%;   /* dark brown on marigold */
+    --brand-ink: 36 87% 70%;        /* light marigold link text on dark */
+    --brand-strong: 36 87% 59%;        /* marigold #F2A93C */
+    --brand-muted: 36 40% 18%;
 
-    --border: 20 16% 20%;
-    --input: 20 16% 24%;
-    --ring: 16 60% 58%;
+    --border: 22 16% 20%;
+    --input: 22 16% 24%;
+    --ring: 36 87% 59%;            /* marigold */
 
     --shadow-sm: 0 1px 2px hsl(0 0% 0% / 0.4);
     --shadow-md: 0 6px 16px -6px hsl(0 0% 0% / 0.6);
@@ -224,39 +223,43 @@
   Label and avatar tints. Keys match src/lib/colors.ts. Each `tint-*` is a
   soft chip (background + readable ink); each `solid-*` a filled swatch
   with white or near-black text, whichever reads.
+  Option (b) recolour: key names are kept (they are stored in the DB and
+  seed avatar colours), but the coldest hues are retuned to brand hues —
+  teal -> coral, blue -> marigold, indigo -> peach — and green is reserved
+  for success, so the "green" key renders as bright yellow.
 */
 .tint-rust     { background: hsl(20 60% 92%);  color: hsl(16 60% 32%); }
 .tint-espresso { background: hsl(25 25% 88%);  color: hsl(19 46% 18%); }
-.tint-amber    { background: hsl(40 85% 88%);  color: hsl(32 80% 26%); }
+.tint-amber    { background: hsl(36 87% 88%);  color: hsl(36 80% 26%); }  /* marigold */
 .tint-olive    { background: hsl(70 35% 86%);  color: hsl(70 45% 22%); }
-.tint-green    { background: hsl(145 40% 88%); color: hsl(150 55% 22%); }
-.tint-teal     { background: hsl(180 35% 86%); color: hsl(185 60% 22%); }
-.tint-blue     { background: hsl(212 60% 91%); color: hsl(214 60% 32%); }
-.tint-indigo   { background: hsl(236 50% 92%); color: hsl(238 45% 38%); }
+.tint-green    { background: hsl(46 92% 88%);  color: hsl(46 85% 26%); }  /* bright yellow — green is success-only */
+.tint-teal     { background: hsl(8 100% 92%);  color: hsl(8 70% 35%); }   /* coral */
+.tint-blue     { background: hsl(36 90% 88%);  color: hsl(36 75% 28%); }  /* marigold */
+.tint-indigo   { background: hsl(30 90% 90%);  color: hsl(30 55% 30%); }  /* peach */
 .tint-plum     { background: hsl(300 30% 90%); color: hsl(300 35% 30%); }
 .tint-rose     { background: hsl(350 70% 92%); color: hsl(350 55% 34%); }
 .tint-slate    { background: hsl(30 10% 88%);  color: hsl(25 12% 28%); }
 
 .dark .tint-rust     { background: hsl(16 40% 20%);  color: hsl(18 75% 78%); }
 .dark .tint-espresso { background: hsl(25 18% 22%);  color: hsl(30 35% 82%); }
-.dark .tint-amber    { background: hsl(36 45% 18%);  color: hsl(40 85% 72%); }
+.dark .tint-amber    { background: hsl(36 45% 18%);  color: hsl(36 87% 72%); }
 .dark .tint-olive    { background: hsl(70 25% 17%);  color: hsl(70 45% 70%); }
-.dark .tint-green    { background: hsl(150 30% 16%); color: hsl(145 45% 70%); }
-.dark .tint-teal     { background: hsl(185 35% 15%); color: hsl(180 45% 70%); }
-.dark .tint-blue     { background: hsl(214 35% 19%); color: hsl(212 75% 78%); }
-.dark .tint-indigo   { background: hsl(238 25% 21%); color: hsl(236 70% 82%); }
+.dark .tint-green    { background: hsl(46 50% 16%);  color: hsl(46 92% 70%); }
+.dark .tint-teal     { background: hsl(8 60% 18%);   color: hsl(8 100% 75%); }
+.dark .tint-blue     { background: hsl(36 50% 18%);  color: hsl(36 87% 72%); }
+.dark .tint-indigo   { background: hsl(30 45% 18%);  color: hsl(30 90% 78%); }
 .dark .tint-plum     { background: hsl(300 20% 19%); color: hsl(300 45% 80%); }
 .dark .tint-rose     { background: hsl(350 35% 19%); color: hsl(350 80% 80%); }
 .dark .tint-slate    { background: hsl(25 8% 20%);   color: hsl(30 12% 78%); }
 
 .solid-rust     { background: hsl(16 51% 48%);  color: #fff; }
 .solid-espresso { background: hsl(19 46% 22%);  color: #fff; }
-.solid-amber    { background: hsl(36 80% 52%);  color: hsl(19 48% 9%); }
+.solid-amber    { background: hsl(36 87% 59%);  color: hsl(22 41% 12%); }  /* marigold #F2A93C, dark-brown text */
 .solid-olive    { background: hsl(70 40% 36%);  color: #fff; }
-.solid-green    { background: hsl(150 50% 32%); color: #fff; }
-.solid-teal     { background: hsl(185 55% 30%); color: #fff; }
-.solid-blue     { background: hsl(214 60% 45%); color: #fff; }
-.solid-indigo   { background: hsl(238 45% 52%); color: #fff; }
+.solid-green    { background: hsl(46 92% 54%);  color: hsl(22 41% 12%); }  /* bright yellow #F6C31C — green is success-only */
+.solid-teal     { background: hsl(8 100% 70%);  color: hsl(22 41% 12%); }  /* coral #FF7A66, dark-brown text */
+.solid-blue     { background: hsl(36 87% 59%);  color: hsl(22 41% 12%); }  /* marigold #F2A93C, dark-brown text */
+.solid-indigo   { background: hsl(36 74% 47%);  color: hsl(22 41% 12%); }  /* marigold 600 #D18A1F, dark-brown text */
 .solid-plum     { background: hsl(300 30% 40%); color: #fff; }
 .solid-rose     { background: hsl(350 60% 48%); color: #fff; }
 .solid-slate    { background: hsl(25 10% 40%);  color: #fff; }

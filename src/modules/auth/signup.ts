@@ -164,12 +164,12 @@ export function signupEmail(to: string, code: string) {
     "",
     `— ${APP_NAME}`,
   ].join("\n");
-  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;color:#2a1d16">
+  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;color:#2B1B12">
 <p>Your ${escapeHtml(APP_SHORT_NAME)} sign-up code is:</p>
 <p style="font-size:30px;font-weight:600;letter-spacing:6px;margin:16px 0">${code}</p>
 <p>It expires in ${minutes} minutes. Enter it on the sign-up page to finish creating your account.</p>
 <p>If you didn&rsquo;t try to create an account, ignore this email. Nothing is created without the code.</p>
-<p style="color:#7a6a60">&mdash; ${escapeHtml(APP_NAME)}</p>
+<p style="color:#7E5F4E">&mdash; ${escapeHtml(APP_NAME)}</p>
 </div>`;
   return { to, subject: `Your ${APP_SHORT_NAME} code: ${code}`, text, html };
 }
@@ -182,10 +182,10 @@ export function alreadyRegisteredEmail(to: string) {
     "",
     `— ${APP_NAME}`,
   ].join("\n");
-  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;color:#2a1d16">
+  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;color:#2B1B12">
 <p>Someone tried to create a ${escapeHtml(APP_SHORT_NAME)} account with this email. You already have one: sign in, or use Forgot password on the sign-in page.</p>
 <p>If that wasn&rsquo;t you, you can ignore this email. Nothing has changed on your account.</p>
-<p style="color:#7a6a60">&mdash; ${escapeHtml(APP_NAME)}</p>
+<p style="color:#7E5F4E">&mdash; ${escapeHtml(APP_NAME)}</p>
 </div>`;
   return { to, subject: `You already have a ${APP_SHORT_NAME} account`, text, html };
 }
