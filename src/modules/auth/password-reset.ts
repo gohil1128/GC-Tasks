@@ -132,12 +132,12 @@ export function resetEmail(to: string, code: string) {
     "",
     `— ${APP_NAME}`,
   ].join("\n");
-  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;color:#2a1d16">
+  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;color:#2B1B12">
 <p>Your ${escapeHtml(APP_SHORT_NAME)} password reset code is:</p>
 <p style="font-size:30px;font-weight:600;letter-spacing:6px;margin:16px 0">${code}</p>
 <p>It expires in ${minutes} minutes. Enter it on the &ldquo;Forgot password?&rdquo; page to choose a new password.</p>
 <p>If you didn&rsquo;t ask for this, ignore this email. Your password stays as it is.</p>
-<p style="color:#7a6a60">&mdash; ${escapeHtml(APP_NAME)}</p>
+<p style="color:#7E5F4E">&mdash; ${escapeHtml(APP_NAME)}</p>
 </div>`;
   return { to, subject: `Your ${APP_SHORT_NAME} code: ${code}`, text, html };
 }

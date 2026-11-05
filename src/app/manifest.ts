@@ -14,8 +14,8 @@ export default function manifest(): MetadataRoute.Manifest {
     description: "The God's Chai team board — what everyone is working on.",
     start_url: "/",
     display: "standalone",
-    background_color: "#f4efe7",
-    theme_color: "#f4efe7",
+    background_color: "#FDF8EE",
+    theme_color: "#FDF8EE",
     icons: [
       { src: "/icon-192.png", sizes: "192x192", type: "image/png" },
       { src: "/icon-512.png", sizes: "512x512", type: "image/png" },

@@ -52,7 +52,7 @@ export async function shrinkPhoto(file: File): Promise<ShrunkPhoto> {
     const ctx = canvas.getContext("2d");
     if (!ctx) throw new Error("Couldn't prepare the photo.");
     // A transparent PNG would turn black as a JPEG; give it the page's paper colour instead.
-    ctx.fillStyle = "#fbf8f3";
+    ctx.fillStyle = "#FFFCF5";
     ctx.fillRect(0, 0, width, height);
     ctx.drawImage(image.source, 0, 0, width, height);
     const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/jpeg", QUALITY));

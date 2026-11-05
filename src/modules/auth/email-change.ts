@@ -154,12 +154,12 @@ export function codeEmail(to: string, code: string) {
     "",
     `— ${APP_NAME}`,
   ].join("\n");
-  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;color:#2a1d16">
+  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;color:#2B1B12">
 <p>Your ${escapeHtml(APP_SHORT_NAME)} code to confirm this email address is:</p>
 <p style="font-size:30px;font-weight:600;letter-spacing:6px;margin:16px 0">${code}</p>
 <p>It expires in ${minutes} minutes. Enter it in Settings to finish changing your email.</p>
 <p>If you didn&rsquo;t ask for this, ignore this email. Nothing changes unless the code is entered.</p>
-<p style="color:#7a6a60">&mdash; ${escapeHtml(APP_NAME)}</p>
+<p style="color:#7E5F4E">&mdash; ${escapeHtml(APP_NAME)}</p>
 </div>`;
   return { to, subject: `Your ${APP_SHORT_NAME} code: ${code}`, text, html };
 }
@@ -173,11 +173,11 @@ function changedEmail(to: string, newEmail: string) {
     "",
     `— ${APP_NAME}`,
   ].join("\n");
-  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;color:#2a1d16">
+  const html = `<div style="font-family:system-ui,-apple-system,sans-serif;font-size:15px;line-height:1.5;color:#2B1B12">
 <p>The email on your ${escapeHtml(APP_SHORT_NAME)} account was changed to <strong>${escapeHtml(newEmail)}</strong>.
 From now on, sign in with that address.</p>
 <p>If you didn&rsquo;t do this, ask an owner on your team to look at your account straight away.</p>
-<p style="color:#7a6a60">&mdash; ${escapeHtml(APP_NAME)}</p>
+<p style="color:#7E5F4E">&mdash; ${escapeHtml(APP_NAME)}</p>
 </div>`;
   return { to, subject: `Your ${APP_SHORT_NAME} email was changed`, text, html };
 }
