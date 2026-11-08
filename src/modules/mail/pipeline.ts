@@ -2,6 +2,8 @@ import { Prisma, type MailConnection, type PrismaClient } from "@prisma/client";
 import { parseDay } from "@/lib/dates";
 import type { Actor } from "@/lib/permissions";
 import { createLabel } from "@/modules/labels/service";
+import { withoutActivityPush } from "@/modules/notifications/context";
+import { scheduleEmailTaskPush, type EmailTaskEvent } from "@/modules/notifications/dispatch";
 import { addComment, createTask } from "@/modules/tasks/service";
 import { ClassifyRefused, type EmailClassifier, type Verdict } from "./classify";
 import {
@@ -47,6 +49,8 @@ export type ScanDeps = {
   mailFor: (connection: MailConnection) => Promise<MailClient>;
   classifier: EmailClassifier;
   now?: () => Date;
+  /** Tells owners' devices about a task logged from email. Defaults to a web push. */
+  notify?: (event: EmailTaskEvent) => void;
 };
 
 export type ScanResult = {
@@ -159,6 +163,7 @@ export async function scanMailbox(trigger: "nightly" | "manual", deps: ScanDeps)
       today: dayIn(SCAN_TIME_ZONE, startedAt),
       labelId: null,
       tasksMade: 0,
+      notify: deps.notify ?? scheduleEmailTaskPush,
     };
 
     /*
@@ -252,6 +257,7 @@ type Ctx = {
   today: string;
   labelId: Promise<string | null> | null;
   tasksMade: number;
+  notify: (event: EmailTaskEvent) => void;
 };
 
 type Outcome = { counter: "tasks" | "comments" | "skipped"; receivedAt: Date };
@@ -350,8 +356,9 @@ async function handleOne(ctx: Ctx, item: MailItem, rowId: string): Promise<Outco
     select: { taskId: true },
   });
   if (earlier?.taskId) {
-    const commented = await addComment(ctx.actor, { taskId: earlier.taskId, body: task.comment });
+    const commented = await withoutActivityPush(() => addComment(ctx.actor, { taskId: earlier.taskId!, body: task.comment }));
     if (commented.ok) {
+      ctx.notify({ taskId: earlier.taskId, title: task.title, kind: "update", doubtful: task.doubtful });
       await db.mailMessage.update({
         where: { id: rowId },
         data: { status: "TASK", taskId: earlier.taskId, receivedAt: item.receivedAt, threadId: item.threadId, reason: "Added to the thread's task." },
@@ -363,7 +370,7 @@ async function handleOne(ctx: Ctx, item: MailItem, rowId: string): Promise<Outco
   }
 
   const labelId = await emailLabel(ctx);
-  const made = await createTask(ctx.actor, {
+  const made = await withoutActivityPush(() => createTask(ctx.actor, {
     title: task.title,
     description: task.description,
     status: "TODO",
@@ -371,12 +378,13 @@ async function handleOne(ctx: Ctx, item: MailItem, rowId: string): Promise<Outco
     dueDate: task.dueDate,
     assigneeIds: [ctx.actor.id],
     labelIds: labelId ? [labelId] : [],
-  });
+  }));
   if (!made.ok) {
     if (made.code === "UNAUTHORIZED" || made.code === "FORBIDDEN") throw new OwnerGone(ownerGoneNote(undefined));
     throw new Error(made.error);
   }
   ctx.tasksMade++;
+  ctx.notify({ taskId: made.data.id, title: task.title, kind: "task", doubtful: task.doubtful });
   await db.mailMessage.update({
     where: { id: rowId },
     data: { status: "TASK", taskId: made.data.id, receivedAt: item.receivedAt, threadId: item.threadId, reason: null },
@@ -422,6 +430,7 @@ export function toTaskInput(
   comment: string;
   dueDate: Date | null;
   priority: "MEDIUM" | "HIGH";
+  doubtful: boolean;
 } | null {
   if (!v.action_needed) return null;
   if (!Number.isFinite(v.confidence) || v.confidence < CONFIDENCE_MIN) return null;
@@ -471,5 +480,5 @@ export function toTaskInput(
       .join("\n\n"),
     4_500,
   );
-  return { title, description, comment, dueDate, priority };
+  return { title, description, comment, dueDate, priority, doubtful: warnings.length > 0 };
 }

@@ -38,3 +38,21 @@ export async function withActivityCapture<T>(
   const result = await storage.run(store, fn);
   return { result, entries: store.entries };
 }
+
+/*
+  Writes that announce themselves another way. The mail scanner makes tasks
+  as the owner who connected the mailbox, and sends its own "from email" push
+  to every owner's devices — that owner's included — so the ordinary
+  "Ola created …" push for the same task would only be a second buzz. The
+  activity rows (and so the bell) are unaffected.
+*/
+const quiet = new AsyncLocalStorage<true>();
+
+/** Runs `fn` with the ordinary activity push switched off for the writes inside it. */
+export function withoutActivityPush<T>(fn: () => Promise<T>): Promise<T> {
+  return quiet.run(true, fn);
+}
+
+export function activityPushMuted(): boolean {
+  return quiet.getStore() === true;
+}

@@ -5,6 +5,7 @@ import type { MailClient, MailItem } from "@/modules/mail/gmail";
 import { GmailAuthError } from "@/modules/mail/gmail";
 import { scanMailbox, type ScanDeps } from "@/modules/mail/pipeline";
 import { runNightly } from "@/modules/mail/service";
+import type { EmailTaskEvent } from "@/modules/notifications/dispatch";
 
 /*
   The whole scan against a real Postgres, with a fake mailbox and a fake
@@ -78,9 +79,11 @@ const classifier: EmailClassifier = {
 describe.skipIf(!enabled)("email to tasks (integration)", () => {
   let ownerId: string;
   let staffId: string;
+  let pushed: EmailTaskEvent[];
 
   beforeEach(async () => {
     await reset();
+    pushed = [];
     ownerId = (await prisma.user.create({ data: { email: "o@x.test", name: "Ola", role: "OWNER", passwordHash: "x" } })).id;
     staffId = (await prisma.user.create({ data: { email: "s@x.test", name: "Sam", role: "STAFF", passwordHash: "x" } })).id;
     await prisma.mailConnection.create({
@@ -103,6 +106,7 @@ describe.skipIf(!enabled)("email to tasks (integration)", () => {
     mailFor: async () => fakeMail(items),
     classifier,
     now: () => new Date("2026-11-08T06:10:00Z"),
+    notify: (e) => pushed.push(e),
     ...extra,
   });
 
@@ -168,6 +172,30 @@ describe.skipIf(!enabled)("email to tasks (integration)", () => {
     expect(task.title).toBe("Do ACT sign LOA");
     expect(task.comments).toHaveLength(1);
     expect(task.comments[0].body).toContain("Another email on this");
+    // Owners' devices hear of the task, then of the follow-up on it.
+    expect(pushed).toEqual([
+      { taskId: task.id, title: "Do ACT sign LOA", kind: "task", doubtful: false },
+      { taskId: task.id, title: "Do ACT reminder: sign LOA", kind: "update", doubtful: false },
+    ]);
+  });
+
+  it("announces each new task once, flags doubtful ones, and says nothing about skipped mail", async () => {
+    const items = [
+      email("a", { subject: "ACT sign LOA", authenticated: false }),
+      email("bb", { subject: "Newsletter" }),
+      email("ccc", { subject: "ACT permit" }),
+    ];
+    await scanMailbox("manual", deps(items));
+    expect(pushed.map((p) => [p.title, p.kind, p.doubtful]).sort()).toEqual([
+      ["Do ACT permit", "task", false],
+      ["Do ACT sign LOA", "task", true],
+    ]);
+    const ids = (await prisma.task.findMany({ select: { id: true } })).map((t) => t.id).sort();
+    expect(pushed.map((p) => p.taskId).sort()).toEqual(ids);
+    // Reading the same mail again announces nothing.
+    pushed = [];
+    await scanMailbox("manual", deps(items));
+    expect(pushed).toEqual([]);
   });
 
   it("a follow-up on a thread whose task is done gets a new task", async () => {
