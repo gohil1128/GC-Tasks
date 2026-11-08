@@ -39,6 +39,7 @@ These rules live in one place, `src/lib/permissions.ts`. The server enforces the
 - **Archive.** Hide finished tasks from the board, and restore them later.
 - **Ideas.** A Reddit-style page next to the board for opinions and ideas. Anyone can share an idea (a title, plus optional detail), and the team replies in nested threads — to the idea or to any reply. Upvote the good ones: one upvote each, and not on your own posts. Sort the list by **Top** (most upvoted, then newest) or **New**. Replies are ordered by upvotes, then oldest first; tap a reply's arrow or its thread line to collapse it. Deleting something that has replies leaves it in place as *[deleted]*, so the conversation under it stays readable; anything with no replies is removed outright. Ideas are separate from the board: they don't touch tasks or send board notifications.
 - **Sign-up.** With email set up, new people can create their own Staff account from the sign-in page, confirmed by an emailed code. Owners can turn this off on the Team page. See [Sign-up](#sign-up).
+- **Tasks from email.** An owner connects a Gmail mailbox (read-only) in Settings. Every night at midnight Winnipeg time it is read, and any email that asks the business to do something — fill in a form, sign an LOA, pay, reply — becomes a task in *To do*, labelled **Email**, with a link back to the email. See [Tasks from email](#tasks-from-email).
 - **Team.** Owners add teammates as Owner or Staff. The app creates a one-time password, and the new person chooses their own password the first time they sign in. Owners can also change someone's role, reset their password, or deactivate their account. A deactivated person's name stays on their old tasks and comments, but they can't sign in. The board always keeps at least one active owner.
 
 ## Deploy (Vercel + Neon)
@@ -81,6 +82,33 @@ With email set up (the same Resend setup as [password reset](#password-reset-by-
 The page answers the same way whether or not an email already has an account. An email that does gets a short note by email instead of a code ("You already have one: sign in, or use Forgot password"), and nothing is created. Requests and code attempts count against limits like sign-in does. Until the code comes back there is no account, only a pending sign-up holding a bcrypt hash of the chosen password and a keyed hash of the code.
 
 **Turning it off.** Staff can see every task on the board, so an open sign-up means anyone who finds the link can read the board. Owners switch **Allow sign-ups** on the **Team** page. It's on by default. When it's off, the link is hidden, /signup and /signup/verify don't exist, and sign-ups still waiting for their code are thrown away. If someone you don't know signs up, deactivate them from the Team page; they're signed out at once. Without email set up, sign-up is off whatever the switch says.
+
+## Tasks from email
+
+An owner connects one Gmail or Google Workspace mailbox under **Settings → Tasks from email**. Every night at midnight (America/Winnipeg, whatever the time of year) the app reads the mail that came in since the last scan. Gmail's own Promotions, Social, Forums, Spam and Sent are left out. For each email, Claude decides whether it asks the business to *do* something:
+
+- **Yes** (a form to fill in, an LOA or contract to sign, a bill to pay, a question to answer, a document to send, a deadline): a task is created in *To do*, labelled **Email**, assigned to the owner who connected the mailbox. The task has a short title, what is being asked, the due date if the email gives one (due within two days means High priority), and who sent it, the subject and a link that opens the email in Gmail. Because the task is assigned to an owner, staff don't see it until an owner adds them.
+- **A reminder or reply in a thread that already has an open task**: it's added to that task as a comment instead of making a second task.
+- **No**: nothing is made. Only the email's bare Gmail id is kept, so it isn't read twice.
+
+If an email looks like phishing, or Gmail couldn't confirm who sent it, the task says so at the top. Check it before you act. The connection is **read-only**: the app can't send, delete or change any mail. Email text is treated as untrusted, and the model has no tools. All it can do is word a task for a person to read.
+
+**Scan now** in Settings runs a scan straight away. Each scan reads at most 60 emails, and the rest are picked up by the next scan. **Disconnect** stops scanning and revokes access. Tasks already made stay on the board, and connecting the same mailbox again won't make them a second time.
+
+### Setting it up
+
+1. **Google OAuth client.** In the [Google Cloud console](https://console.cloud.google.com/) (you can reuse the project made for God's Chai Operations):
+   - Enable the **Gmail API**.
+   - Under **Google Auth Platform → Clients**, create or reuse a **Web application** client. Add this **Authorized redirect URI**: `https://gc-tasks.vercel.app/api/mail/google/callback`.
+   - On the **Data access** page, the app asks only for `gmail.readonly`. For a Google Workspace mailbox, set the audience to **Internal**. For a personal @gmail.com address, leave it in **Testing** and add the address under **Test users**.
+2. **Anthropic API key.** Get one at [console.anthropic.com](https://console.anthropic.com/). The same key as God's Chai Operations works.
+3. **Two random secrets.** Run each command once:
+   - `openssl rand -base64 32` gives `MAIL_TOKEN_KEY`. This encrypts the stored Google grant. Keep it fixed: if it changes, the mailbox has to be connected again.
+   - `openssl rand -hex 32` gives `CRON_SECRET`. Vercel sends this with the nightly call, and the scan endpoint refuses any call without it.
+4. **In Vercel**, open **Settings → Environment Variables** for this project and add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (the URI from step 1), `MAIL_TOKEN_KEY`, `ANTHROPIC_API_KEY` and `CRON_SECRET`. Then redeploy.
+5. Sign in as an owner. Open **Settings → Tasks from email**, choose **Connect Gmail**, and sign in to the mailbox you want scanned.
+
+The schedule is in `vercel.json`. It calls `/api/cron/scan-email` at 05:00, 06:00 and 07:00 UTC. The endpoint works out which call is midnight in Winnipeg, under both CDT and CST, and scans once. If that scan ran out of time, the 1 a.m. call carries on with what is left. Each Vercel cron runs once a day, so this works on the Hobby plan. To use a different model, set `MAIL_MODEL`. It defaults to `claude-opus-5-5`.
 
 ## Locked out?
 

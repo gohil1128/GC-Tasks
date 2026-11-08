@@ -82,6 +82,7 @@ model User {
   passwordResetCodes PasswordResetCode[]
   emailChange        EmailChangeRequest?
   teamEvents         TeamEvent[]
+  mailConnections    MailConnection[]
 }
 
 // One browser/phone that wants board changes pushed to it. A person can
@@ -139,6 +140,8 @@ model Task {
   checklist ChecklistItem[]
   comments  Comment[]
   activity  Activity[]
+  // The email this task was made from, when the mail scanner made it.
+  mailMessages MailMessage[]
 
   @@index([status, position])
   @@index([archivedAt])
@@ -396,4 +399,97 @@ model IdeaVote {
 
   @@id([ideaId, userId])
   @@index([userId])
+}
+
+// ── Email to tasks ─────────────────────────────────────────────────────────
+// One Gmail mailbox an owner connected (read-only), scanned every night at
+// midnight in Winnipeg. Any email that asks the business to DO something —
+// fill in a form, sign an LOA, pay, reply — becomes a task in To do. See
+// src/modules/mail.
+
+enum MailMessageStatus {
+  // A task was made from it (taskId), or a comment added to the thread's task.
+  TASK
+  // Read, and nothing to do. Only the bare Gmail id is kept.
+  SKIPPED
+  // Something broke; retried on later scans a few times.
+  FAILED
+}
+
+// A single row (id = 1), like BoardSetting: the board has one mailbox.
+model MailConnection {
+  id              Int       @id @default(1)
+  accountEmail    String
+  // AES-256-GCM under MAIL_TOKEN_KEY, never stored in the clear. See
+  // src/modules/mail/crypto.ts.
+  refreshTokenEnc String
+  scope           String
+  // Tasks need an author; this is the owner who connected the mailbox. The
+  // tasks are assigned to them too, which keeps what the mail says to the
+  // owners (staff do not see tasks an owner is on).
+  connectedById   String
+  // ACTIVE | NEEDS_RECONNECT (Google revoked or expired the grant, or the
+  // owner who connected it is no longer an owner).
+  status          String    @default("ACTIVE")
+  statusNote      String?
+  // Everything received before this has been through a COMPLETE scan. It only
+  // moves forward when a scan finishes, so one that runs out of time picks up
+  // where it stopped instead of skipping the rest.
+  scannedThrough  DateTime
+  lastScanAt      DateTime?
+  // The Winnipeg calendar day ("YYYY-MM-DD") the nightly scan last ran for,
+  // so the two daily cron calls (one per UTC offset) only scan once.
+  nightlyDate     String?
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  connectedBy User @relation(fields: [connectedById], references: [id])
+}
+
+// Every email the scanner has read, keyed by mailbox and Gmail id, so no
+// email is read (or turned into a task) twice — not by overlapping scans,
+// and not after the mailbox is disconnected and connected again.
+model MailMessage {
+  id           String            @id @default(cuid())
+  accountEmail String
+  gmailId      String
+  threadId     String            @default("")
+  status       MailMessageStatus
+  // Plain-language reason for FAILED, or what happened for TASK.
+  reason       String?
+  receivedAt   DateTime
+  attempts     Int               @default(0)
+  // SetNull: deleting the task keeps this row, so the email is not turned
+  // into a task again on the next scan.
+  taskId       String?
+  createdAt    DateTime          @default(now())
+  updatedAt    DateTime          @updatedAt
+
+  task Task? @relation(fields: [taskId], references: [id], onDelete: SetNull)
+
+  @@unique([accountEmail, gmailId])
+  @@index([accountEmail, threadId])
+  @@index([taskId])
+}
+
+// One scan, for the Settings summary and the run lock.
+model MailScanRun {
+  id         String    @id @default(cuid())
+  // "nightly" | "manual"
+  trigger    String
+  startedAt  DateTime  @default(now())
+  // Null while running. A run that never finishes stops blocking others
+  // after 15 minutes — see the lock in pipeline.ts.
+  finishedAt DateTime?
+  listed     Int       @default(0)
+  read       Int       @default(0)
+  tasks      Int       @default(0)
+  comments   Int       @default(0)
+  skipped    Int       @default(0)
+  failed     Int       @default(0)
+  // True when the run stopped on its time budget with mail left to do.
+  partial    Boolean   @default(false)
+  error      String?
+
+  @@index([startedAt])
 }
