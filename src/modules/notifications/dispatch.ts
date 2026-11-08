@@ -4,7 +4,7 @@ import { prisma } from "@/lib/prisma";
 import { APP_SHORT_NAME } from "@/lib/brand";
 import { canSeeTask, type Actor } from "@/lib/permissions";
 import { toVisibility, visibilitySelect } from "@/modules/tasks/visibility";
-import type { PendingActivity } from "@/modules/notifications/context";
+import { activityPushMuted, type PendingActivity } from "@/modules/notifications/context";
 import {
   notificationText,
   pendingToDTO,
@@ -58,7 +58,7 @@ function ensureVapid(): boolean {
  * a request scope after() throws — scripts, tests — and the task just runs.
  */
 export function schedulePush(entries: PendingActivity[]): void {
-  if (entries.length === 0) return;
+  if (entries.length === 0 || activityPushMuted()) return;
   runAfter(() => dispatchActivityNotifications(entries));
 }
 
@@ -164,6 +164,42 @@ export async function dispatchTeamNotification(event: {
       owners.map((o) => o.id),
       [{ body: `${event.name} ${teamEventSentence(event.type)}`, tag: `team-${event.userId}`, url: "/team" }],
     );
+  } catch (err) {
+    console.error("push dispatch failed", err);
+  }
+}
+
+export type EmailTaskEvent = {
+  taskId: string;
+  title: string;
+  /** "task": a new task was made from an email; "update": a follow-up was added to one. */
+  kind: "task" | "update";
+  /** The email looked suspicious or failed Gmail's sender checks. */
+  doubtful: boolean;
+};
+
+/** Text and target of the push for a task logged from email. */
+export function emailTaskPayload(event: EmailTaskEvent): Payload {
+  const lead = event.kind === "task" ? "New task from email" : "Email update on";
+  const caution = event.doubtful ? " (check it's genuine)" : "";
+  return { body: `${lead}${caution}: ${event.title}`, tag: `email-${event.taskId}`, url: `/?task=${event.taskId}` };
+}
+
+/** A task logged from the mailbox: every active owner's devices hear of it, after the response. */
+export function scheduleEmailTaskPush(event: EmailTaskEvent): void {
+  runAfter(() => dispatchEmailTaskNotification(event));
+}
+
+/*
+  Owners only, by design: email tasks are assigned to an owner, which hides
+  them — and what the email says — from staff. Unlike board pushes, the owner
+  the task was made "by" is told too: the scanner made it, not them.
+*/
+export async function dispatchEmailTaskNotification(event: EmailTaskEvent): Promise<void> {
+  try {
+    if (!ensureVapid()) return;
+    const owners = await prisma.user.findMany({ where: { role: "OWNER", active: true }, select: { id: true } });
+    await sendPushes(owners.map((o) => o.id), [emailTaskPayload(event)]);
   } catch (err) {
     console.error("push dispatch failed", err);
   }

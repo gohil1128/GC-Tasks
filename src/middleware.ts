@@ -13,6 +13,9 @@ const PUBLIC_EXACT = new Set([
   "/signup",
   "/signup/verify",
   "/api/auth",
+  // The nightly email scan: called by Vercel Cron, guarded by CRON_SECRET in
+  // the route itself (fails closed when it is not set).
+  "/api/cron/scan-email",
 ]);
 const PUBLIC_PREFIXES = ["/api/auth/"];
 

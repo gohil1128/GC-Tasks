@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import Link from "next/link";
 import { KeyRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -10,10 +11,14 @@ import { AppearancePicker } from "./_components/appearance-picker";
 import { LabelsManager, type ManagedLabel } from "./_components/labels-manager";
 import { emailChangeEnabled } from "@/modules/auth/email-change";
 import { EmailChangeForm } from "./_components/email-change-form";
+import { readMailSettings } from "@/modules/mail/service";
+import { MailTasks } from "./_components/mail-tasks";
 import { ProfileForm } from "./_components/profile-form";
 import { SettingsSection } from "./_components/section";
 
 export const dynamic = "force-dynamic";
+// "Scan now" runs as a Server Action from this page; give it the same minute as the nightly scan.
+export const maxDuration = 60;
 export const metadata: Metadata = { title: `Settings · ${APP_SHORT_NAME}` };
 
 async function readLabels(): Promise<ManagedLabel[]> {
@@ -30,6 +35,8 @@ export default async function SettingsPage() {
   const me = await requirePageUser();
   const managesLabels = canManageLabels(me);
   const labels = managesLabels ? await readLabels() : [];
+  // The mailbox is the owners' business: staff are never sent its settings.
+  const mail = me.role === "OWNER" ? await readMailSettings() : null;
 
   return (
     <div className="mx-auto grid w-full max-w-2xl gap-5 px-4 py-6 sm:px-6 sm:py-10">
@@ -67,6 +74,18 @@ export default async function SettingsPage() {
           description="The tags tasks can carry. Renaming or recolouring one changes it on every task that has it."
         >
           <LabelsManager labels={labels} />
+        </SettingsSection>
+      )}
+
+      {mail && (
+        <SettingsSection
+          id="email-tasks"
+          title="Tasks from email"
+          description="Every night at midnight (Winnipeg time) the connected Gmail mailbox is read, and anything that asks you to do something — fill in a form, sign an LOA, pay, reply — becomes a task in To do, labelled Email. Read-only: the app can never send, delete or change mail."
+        >
+          <Suspense>
+            <MailTasks settings={mail} />
+          </Suspense>
         </SettingsSection>
       )}
     </div>
