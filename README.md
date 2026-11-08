@@ -109,7 +109,7 @@ If an email looks like phishing, or Gmail couldn't confirm who sent it, the task
 4. **In Vercel**, open **Settings → Environment Variables** for this project and add `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REDIRECT_URI` (the URI from step 1), `MAIL_TOKEN_KEY`, `ANTHROPIC_API_KEY` and `CRON_SECRET`. Then redeploy.
 5. Sign in as an owner. Open **Settings → Tasks from email**, choose **Connect Gmail**, and sign in to the mailbox you want scanned.
 
-The schedule is in `vercel.json`. It calls `/api/cron/scan-email` at 05:00, 06:00 and 07:00 UTC. The endpoint works out which call is midnight in Winnipeg, under both CDT and CST, and scans once. If that scan ran out of time, the 1 a.m. call carries on with what is left. Each Vercel cron runs once a day, so this works on the Hobby plan. To use a different model, set `MAIL_MODEL`. It defaults to `claude-opus-5-5`.
+The schedule is in `vercel.json`. It calls `/api/cron/scan-email` at 05:00, 06:00 and 07:00 UTC. The endpoint works out which call is midnight in Winnipeg and scans once. Since November 2026 Manitoba stays on UTC-5 all year, so that is the 05:00 call. The app pins this rule itself instead of relying on the server's time-zone data, which may be older. If that scan ran out of time, the 1 a.m. call carries on with what is left. Each Vercel cron runs once a day, so this works on the Hobby plan. To use a different model, set `MAIL_MODEL`. It defaults to `claude-opus-5-5`.
 
 ## Locked out?
 

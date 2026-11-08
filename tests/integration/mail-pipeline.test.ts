@@ -249,15 +249,15 @@ describe.skipIf(!enabled)("email to tasks (integration)", () => {
 
   it("the nightly entry runs once per Winnipeg night", async () => {
     const d = deps([email("a", { subject: "ACT one" })]);
-    // 00:10 in Winnipeg (CST).
-    const midnight = new Date("2026-11-08T06:10:00Z");
+    // 00:10 in Winnipeg (year-round UTC-5 since November 2026).
+    const midnight = new Date("2026-11-08T05:10:00Z");
     const first = await runNightly(d, midnight);
     expect(first).toMatchObject({ ran: true, decision: "nightly", tasks: 1 });
-    const second = await runNightly(d, new Date("2026-11-08T06:40:00Z"));
+    const second = await runNightly(d, new Date("2026-11-08T05:40:00Z"));
     expect(second).toMatchObject({ ran: false, decision: "skip" });
-    // 23:10 the evening before is not midnight.
+    // 2:30 a.m. is not midnight, even for a night not yet scanned.
     await prisma.mailConnection.update({ where: { id: 1 }, data: { nightlyDate: null } });
-    expect(await runNightly(d, new Date("2026-11-08T05:10:00Z"))).toMatchObject({ ran: false });
+    expect(await runNightly(d, new Date("2026-11-08T07:30:00Z"))).toMatchObject({ ran: false });
     expect((await prisma.mailConnection.findUniqueOrThrow({ where: { id: 1 } })).nightlyDate).toBeNull();
   });
 });
