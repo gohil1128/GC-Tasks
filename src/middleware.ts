@@ -41,6 +41,6 @@ export const config = {
   // browser fetches both outside any page's session (service-worker update
   // checks, the install prompt), and a login redirect would break push.
   matcher: [
-    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico)$).*)",
+    "/((?!_next/static|_next/image|favicon.ico|sw\\.js|manifest\\.webmanifest|.*\\.(?:png|jpg|jpeg|svg|gif|webp|ico|mp4|webm)$).*)",
   ],
 };

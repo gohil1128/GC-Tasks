@@ -7,7 +7,7 @@ import { passwordResetEnabled } from "@/modules/auth/password-reset";
 import { safeNextPath } from "@/modules/auth/safe-next";
 import { hasAnyUser } from "@/modules/auth/setup";
 import { signupsAvailable } from "@/modules/auth/signup";
-import { BrandLogo } from "@/components/shell/brand-logo";
+import { LoginVideo } from "@/components/shell/login-video";
 import { LoginForm } from "../_components/login-form";
 
 export const dynamic = "force-dynamic";
@@ -36,15 +36,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           "text-[hsl(var(--rust-100))]",
         ].join(" ")}
       >
+        {/* Chai simmering behind the panel, under an espresso scrim so the cream type stays readable. */}
+        <LoginVideo className="pointer-events-none absolute inset-0 h-full w-full object-cover object-[center_55%]" />
+        <div aria-hidden className="pointer-events-none absolute inset-0 bg-[linear-gradient(180deg,hsl(17_46%_10%/0.72)_0%,hsl(17_46%_10%/0.38)_42%,hsl(17_46%_10%/0.5)_70%,hsl(17_46%_8%/0.86)_100%)]" />
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/logo.png"
-          alt=""
-          aria-hidden
-          className="pointer-events-none absolute -bottom-16 -right-16 h-[420px] w-auto opacity-[0.07] brightness-[4]"
-        />
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo.png" alt={APP_NAME} className="h-16 w-auto self-start brightness-[3.4] saturate-[.4]" />
+        <img src="/logo.png" alt={APP_NAME} className="relative h-16 w-auto self-start brightness-[3.4] saturate-[.4]" />
 
         <div className="relative">
           <p className="display text-[44px] font-medium leading-[1.05]">
@@ -57,13 +53,18 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
           </p>
         </div>
 
-        <div className="relative text-2xs opacity-60">{APP_NAME}</div>
+        <div className="relative text-2xs opacity-70">{APP_NAME}</div>
       </div>
 
       <main className="flex items-center justify-center px-4 py-10 sm:p-10">
         <div className="w-full max-w-[380px]">
-          {/* On small screens the brand panel is hidden, so the logo shows here. */}
-          <BrandLogo className="mb-6 lg:hidden" imgClassName="h-14" />
+          {/* On small screens the brand panel is hidden: a banner with the same video and the logo instead. */}
+          <div className="relative mb-7 flex h-[10.5rem] items-center justify-center overflow-hidden rounded-bento bg-[hsl(var(--ink-800))] lg:hidden">
+            <LoginVideo className="pointer-events-none absolute inset-0 h-full w-full object-cover object-[center_55%]" />
+            <div aria-hidden className="pointer-events-none absolute inset-0 bg-[hsl(17_46%_10%/0.5)]" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo.png" alt={APP_NAME} className="relative h-16 w-auto brightness-[3.4] saturate-[.4]" />
+          </div>
           <h1 className="display text-[30px] font-semibold leading-tight">Welcome back</h1>
           <p className="mb-7 mt-1.5 text-sm text-muted-foreground">Sign in to the team board.</p>
           <LoginForm next={next} />
