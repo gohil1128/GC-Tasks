@@ -351,6 +351,8 @@
   .login-tagline { display: block; position: absolute; left: 3rem; bottom: 2.75rem; z-index: 1; margin: 0; font-size: 44px; font-weight: 500; line-height: 1.05; color: hsl(var(--cream) / 0.92); text-shadow: 0 2px 24px hsl(17 60% 4% / 0.5); animation: login-fade 1.4s ease 0.4s both; }
   .login-foot { display: block; position: absolute; right: 3rem; bottom: 2.9rem; z-index: 1; margin: 0; font-size: 0.6875rem; letter-spacing: 0.08em; text-transform: uppercase; color: hsl(var(--cream) / 0.55); }
 }
+/* While someone is using the card (pointer on it, or typing in it) it holds still: nobody should have to aim at a moving button. */
+.login-card:hover, .login-card:focus-within, .login-float:has(.login-card:hover)::after, .login-float:has(.login-card:focus-within)::after { animation-play-state: paused; }
 @keyframes login-rise { from { opacity: 0; transform: translateY(28px) scale(0.97); } }
 @keyframes login-bob { 50% { translate: 0 -10px; } }
 @keyframes login-shadow { 50% { transform: scale(0.86); opacity: 0.65; } }

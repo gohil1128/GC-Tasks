@@ -17,7 +17,7 @@ export function LoginFloat({ children }: { children: React.ReactNode }) {
       frame = requestAnimationFrame(() => {
         frame = 0;
         const el = card.current;
-        if (!el) return;
+        if (!el || el.matches(":hover")) return; // still while the pointer is on it
         const x = e.clientX / window.innerWidth - 0.5;
         const y = e.clientY / window.innerHeight - 0.5;
         el.style.setProperty("--tilt-y", `${(x * 7).toFixed(2)}deg`);
